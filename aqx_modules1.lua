@@ -1,12 +1,14 @@
---[[ aqx modules part 1 ]]
+--[[ aqx modules part 1 — weapon, target, money, vehicle, movement ]]
 
-local A = getgenv().aqx
-assert(A and A.CoreLoaded, "aqx core not loaded")
+local A=getgenv().aqx
+assert(A and A.CoreLoaded,"aqx core not loaded")
 local Players=A.Players local RS=A.RS local RunSvc=A.RunSvc local UIS=A.UIS
 local StarterGui=A.StarterGui local LP=A.LP local BP=A.BP
 local notify=A.notify local TP=A.TP
 
+--------------------------------------------------------------------
 -- WEAPON MODS
+--------------------------------------------------------------------
 A.WeaponMods = {InfiniteAmmo=false,InfiniteClips=false,Bullets80k=false,
     ModifyRecoilValue=false,ModifySpreadValue=false,DisableJamming=false,
     InstantReload=false,InstantEquip=false,ModifyFireRate=false,
@@ -80,8 +82,14 @@ A.force80k = function()
     notify("Gun Mods","Forced 80k bullets.")
 end
 
--- gun color
-A.GunOriginalColors={} A.GunChams=false A.RainbowGun=false A.GunChamsColor=Color3.fromRGB(0,200,0)
+--------------------------------------------------------------------
+-- GUN COLOR
+--------------------------------------------------------------------
+A.GunOriginalColors={}
+A.GunChams=false
+A.RainbowGun=false
+A.GunChamsColor=Color3.fromRGB(0,200,0)
+
 local function updGunColor()
     if not A.GunChams then return end
     local c=LP.Character local t=c and c:FindFirstChildOfClass("Tool")
@@ -103,7 +111,9 @@ A.restoreGunColor=function()
 end
 RunSvc.RenderStepped:Connect(function() pcall(updGunColor) end)
 
+--------------------------------------------------------------------
 -- TARGET
+--------------------------------------------------------------------
 A.TargetUtilities={SelectedPlayer=nil,SpectatePlayer=false,BringingPlayer=false,
     BringingNearestPlayer=false,AutoRagdoll=false,AutoKill=false,AutoKillMaxDistance=350}
 local TU=A.TargetUtilities
@@ -220,7 +230,9 @@ task.spawn(function()
     end
 end)
 
+--------------------------------------------------------------------
 -- CAR FLING
+--------------------------------------------------------------------
 A.CarFlingRunning=false
 local function getFlingCar()
     local c=LP.Character local r=c and c:FindFirstChild("HumanoidRootPart")
@@ -329,7 +341,9 @@ A.CarFlingSelectedPlayer=function()
     end)
 end
 
+--------------------------------------------------------------------
 -- MONEY
+--------------------------------------------------------------------
 local function goodCleaner()
     if not workspace:FindFirstChild("1# Map") then return nil end
     local ci
@@ -392,30 +406,102 @@ end
 
 A.GenerateMaxIllegalMoney=function()
     local P=LP
-    local function getCup()
-        for _,cont in ipairs({P.Backpack,P.Character}) do
-            if cont then
-                for _,t in pairs(cont:GetChildren()) do
+
+    ----------------------------------------------------------------
+    -- helpers
+    ----------------------------------------------------------------
+    local function waitEquipped(toolName,timeout)
+        timeout=timeout or 3
+        local t0=tick()
+        while tick()-t0<timeout do
+            local c=P.Character
+            if c and c:FindFirstChild(toolName) then return true end
+            local bp=P:FindFirstChild("Backpack")
+            local tool=bp and bp:FindFirstChild(toolName)
+            if tool then
+                local hum=c and c:FindFirstChildOfClass("Humanoid")
+                if hum then pcall(function() hum:EquipTool(tool) end) end
+            end
+            task.wait(0.1)
+        end
+        return false
+    end
+
+    local function burstSell()
+        local sell=workspace:FindFirstChild("IceFruit Sell")
+        if not sell then return end
+        local prompt=sell:FindFirstChild("ProximityPrompt")
+        if not prompt then return end
+        prompt.HoldDuration=0
+        prompt.MaxActivationDistance=math.huge
+        for _=1,4000 do
+            task.spawn(function() pcall(function() fireproximityprompt(prompt) end) end)
+        end
+        task.wait(0.5)
+        for _=1,4000 do
+            task.spawn(function() pcall(function() fireproximityprompt(prompt) end) end)
+        end
+    end
+
+    local function waitBrewDone(stove,timeout)
+        timeout=timeout or 60
+        local t0=tick()
+        task.wait(1)
+        while tick()-t0<timeout do
+            local done=false
+            pcall(function()
+                local cp=stove and stove:FindFirstChild("CookPart")
+                local steam=cp and cp:FindFirstChild("Steam")
+                local ui=steam and steam:FindFirstChild("LoadUI")
+                if ui and ui.Enabled==false then done=true end
+            end)
+            if done then return true end
+            task.wait(0.25)
+        end
+        return false
+    end
+
+    local function hasBrewedCup()
+        for _,container in ipairs({P.Character,P.Backpack}) do
+            if container then
+                for _,t in pairs(container:GetChildren()) do
                     if t:IsA("Tool") and t.Name=="Ice-Fruit Cupz" then
                         local cp=t:FindFirstChild("IceFruit Cup")
                         if cp and cp:FindFirstChild("IceFruit PunchMedium")
-                        and cp["IceFruit PunchMedium"].Transparency~=1 then return true,t end
+                        and cp["IceFruit PunchMedium"].Transparency~=1 then
+                            return true,t
+                        end
                     end
                 end
             end
         end
         return false,nil
     end
-    local f,cup=getCup()
-    local oc=P.Character and P.Character:FindFirstChild("HumanoidRootPart") and P.Character.HumanoidRootPart.CFrame
-    if cup and f and oc and workspace:FindFirstChild("IceFruit Sell") then
-        if cup.Parent==P.Backpack then P.Character.Humanoid:EquipTool(cup) task.wait(1) end
-        TP(workspace["IceFruit Sell"].CFrame) task.wait(0.5)
-        for _=1,4000 do task.spawn(function()
-            pcall(function() fireproximityprompt(workspace["IceFruit Sell"].ProximityPrompt) end)
-        end) end
-        TP(oc) task.wait(8) return
+
+    ----------------------------------------------------------------
+    -- 1) if already brewed, just sell
+    ----------------------------------------------------------------
+    local ready,cup=hasBrewedCup()
+    local originCF=P.Character and P.Character:FindFirstChild("HumanoidRootPart")
+        and P.Character.HumanoidRootPart.CFrame
+    if ready and cup and originCF and workspace:FindFirstChild("IceFruit Sell") then
+        if cup.Parent==P.Backpack then
+            local hum=P.Character:FindFirstChildOfClass("Humanoid")
+            if hum then pcall(function() hum:EquipTool(cup) end) end
+            task.wait(0.5)
+        end
+        notify("Money","Selling brewed Cupz...")
+        TP(workspace["IceFruit Sell"].CFrame)
+        task.wait(1)
+        burstSell()
+        TP(originCF)
+        task.wait(8)
+        return
     end
+
+    ----------------------------------------------------------------
+    -- 2) buy items, brew, equip cup, wait, burst sell
+    ----------------------------------------------------------------
     local items={"FijiWater","FreshWater","Ice-Fruit Bag","Ice-Fruit Cupz"}
     local stove
     if workspace:FindFirstChild("CookingPots") then
@@ -426,45 +512,104 @@ A.GenerateMaxIllegalMoney=function()
             end
         end
     end
+
     for _,it in ipairs(items) do
-        if not P.Backpack:FindFirstChild(it) then
-            pcall(function() RS:WaitForChild("ExoticShopRemote"):InvokeServer(it) end) task.wait(1)
+        if not P.Backpack:FindFirstChild(it) and not P.Character:FindFirstChild(it) then
+            pcall(function() RS:WaitForChild("ExoticShopRemote"):InvokeServer(it) end)
+            task.wait(0.8)
         end
     end
     for _,it in ipairs(items) do
-        if not P.Backpack:FindFirstChild(it) then notify("Money","Missing items.") return end
-    end
-    if not stove then notify("Money","No stove.") return end
-    TP(stove.CookPart.CFrame) task.wait(1)
-    pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack,false) end)
-    P.Character.HumanoidRootPart.Anchored=true task.wait(1.5)
-    pcall(function() fireproximityprompt(stove:FindFirstChildWhichIsA("ProximityPrompt",true)) end) task.wait(2)
-    for _,it in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag"}) do
-        if P.Backpack:FindFirstChild(it) then
-            P.Character.Humanoid:EquipTool(P.Backpack[it]) task.wait(1)
-            pcall(function() fireproximityprompt(stove:FindFirstChildWhichIsA("ProximityPrompt",true)) end) task.wait(3)
+        if not P.Backpack:FindFirstChild(it) and not P.Character:FindFirstChild(it) then
+            notify("Money","Missing "..it.." — need more cash.") return
         end
     end
-    pcall(function() repeat task.wait() until stove.CookPart.Steam.LoadUI.Enabled==false end)
-    if not P.Character:FindFirstChild("Ice-Fruit Cupz") and P.Backpack:FindFirstChild("Ice-Fruit Cupz") then
-        P.Character.Humanoid:EquipTool(P.Backpack["Ice-Fruit Cupz"]) task.wait(1)
-    end
+    if not stove then notify("Money","No stove found.") return end
+
+    TP(stove.CookPart.CFrame)
     task.wait(1)
-    pcall(function() fireproximityprompt(stove:FindFirstChildWhichIsA("ProximityPrompt",true)) end) task.wait(3)
-    P.Character.HumanoidRootPart.Anchored=false
-    if workspace:FindFirstChild("IceFruit Sell") then
-        TP(workspace["IceFruit Sell"].CFrame) task.wait(1)
-        P.Character.HumanoidRootPart.Anchored=true task.wait(1.5)
-        if not P.Character:FindFirstChild("Ice-Fruit Cupz") and P.Backpack:FindFirstChild("Ice-Fruit Cupz") then
-            P.Character.Humanoid:EquipTool(P.Backpack["Ice-Fruit Cupz"]) task.wait(1)
+    pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack,false) end)
+    P.Character.HumanoidRootPart.Anchored=true
+    task.wait(1)
+
+    local stovePrompt=stove:FindFirstChildWhichIsA("ProximityPrompt",true)
+    pcall(function() fireproximityprompt(stovePrompt) end)
+    task.wait(2)
+
+    for _,it in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag"}) do
+        local bp=P:FindFirstChild("Backpack")
+        if bp and bp:FindFirstChild(it) then
+            local hum=P.Character:FindFirstChildOfClass("Humanoid")
+            if hum then pcall(function() hum:EquipTool(bp[it]) end) end
+            task.wait(1)
+            pcall(function() fireproximityprompt(stovePrompt) end)
+            task.wait(3)
         end
-        workspace["IceFruit Sell"].ProximityPrompt.HoldDuration=0
-        for _=1,4000 do task.spawn(function()
-            pcall(function() fireproximityprompt(workspace["IceFruit Sell"].ProximityPrompt) end)
-        end) end
     end
+
+    -- equip the Ice-Fruit Cupz and confirm it's actually in Character
+    pcall(function()
+        local bp=P:FindFirstChild("Backpack")
+        if bp and bp:FindFirstChild("Ice-Fruit Cupz") then
+            local hum=P.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum:EquipTool(bp["Ice-Fruit Cupz"]) end
+        end
+    end)
+    local equippedOK=waitEquipped("Ice-Fruit Cupz",4)
+    if not equippedOK then
+        notify("Money","Couldn't equip Cupz — aborting.")
+        P.Character.HumanoidRootPart.Anchored=false
+        pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack,true) end)
+        return
+    end
+
+    task.wait(1)
+    pcall(function() fireproximityprompt(stovePrompt) end)
+
+    notify("Money","Brewing... waiting for finish.")
+    local done=waitBrewDone(stove,60)
+    if not done then notify("Money","Brew timed out — still selling.") end
+    task.wait(1)
+
+    -- re-equip after brew
+    pcall(function()
+        local bp=P:FindFirstChild("Backpack")
+        local ch=P.Character
+        if ch and ch:FindFirstChild("Ice-Fruit Cupz") then return end
+        if bp and bp:FindFirstChild("Ice-Fruit Cupz") then
+            local hum=ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then hum:EquipTool(bp["Ice-Fruit Cupz"]) end
+        end
+    end)
+    waitEquipped("Ice-Fruit Cupz",3)
+
+    P.Character.HumanoidRootPart.Anchored=false
+
+    if workspace:FindFirstChild("IceFruit Sell") then
+        TP(workspace["IceFruit Sell"].CFrame)
+        task.wait(1)
+        P.Character.HumanoidRootPart.Anchored=true
+        task.wait(0.5)
+
+        pcall(function()
+            local bp=P:FindFirstChild("Backpack")
+            local ch=P.Character
+            if ch and ch:FindFirstChild("Ice-Fruit Cupz") then return end
+            if bp and bp:FindFirstChild("Ice-Fruit Cupz") then
+                local hum=ch and ch:FindFirstChildOfClass("Humanoid")
+                if hum then hum:EquipTool(bp["Ice-Fruit Cupz"]) end
+            end
+        end)
+        waitEquipped("Ice-Fruit Cupz",2)
+
+        notify("Money","Burst selling 4000x...")
+        burstSell()
+        task.wait(2)
+    end
+
     P.Character.HumanoidRootPart.Anchored=false
     pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack,true) end)
+    notify("Money","Done generating money.")
 end
 
 local function dropAmt(a)
@@ -484,7 +629,9 @@ task.spawn(function()
     end
 end)
 
+--------------------------------------------------------------------
 -- VEHICLE
+--------------------------------------------------------------------
 A.Config.TheBronx={carfly=false,carflyspeed=120}
 A.CarFly={Enabled=false,Speed=120}
 local CH,CS,CC,CR,CBV,CBG,LC
@@ -591,7 +738,9 @@ A.GetNearestCar=function(hrp)
     return nc
 end
 
+--------------------------------------------------------------------
 -- MOVEMENT
+--------------------------------------------------------------------
 A.LuhjayyWalk={Speed=16,BoostMultiplier=2,Enabled=false,Character=nil,Humanoid=nil,Root=nil,
     BodyGyro=nil,MovementConnection=nil,FreezeConnection=nil,AnimationTrack=nil}
 local LW=A.LuhjayyWalk
@@ -706,7 +855,9 @@ A.disableNoclip=function()
     if c then for _,p in pairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide=true end end end
 end
 
+--------------------------------------------------------------------
 -- FLY
+--------------------------------------------------------------------
 A.MiamiFlyData={Enabled=false,Connections={},Velocity=nil,Gyro=nil,Seat=nil,Weld=nil,
     Speed=80,Move={W=false,A=false,S=false,D=false,Space=false,Shift=false}}
 A.MiamiFlyCleanup=function()
