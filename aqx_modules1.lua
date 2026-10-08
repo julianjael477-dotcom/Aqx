@@ -404,12 +404,12 @@ A.SetupInfiniteMoney=function()
     end
 end
 
+-- ═══════════════════════════════════════════════════════════════
+-- MONEY GEN — verbatim valria juice flow
+-- ═══════════════════════════════════════════════════════════════
 A.GenerateMaxIllegalMoney=function()
     local P=LP
 
-    ----------------------------------------------------------------
-    -- helpers
-    ----------------------------------------------------------------
     local function hasIt(n)
         local c=P.Character
         if c then
@@ -510,22 +510,16 @@ A.GenerateMaxIllegalMoney=function()
         return false
     end
 
-    ----------------------------------------------------------------
-    -- main flow
-    ----------------------------------------------------------------
+    notify("Money","Starting juice flow...")
+
     local stove,prompt=findStove()
-    if not stove or not prompt then
-        notify("Money","No CookingPots found.")
-        return
-    end
+    if not stove then notify("Money","No CookingPots found.") return end
     local sell,sPrompt=findSell()
-    if not sell or not sPrompt then
-        notify("Money","IceFruit Sell not found.")
-        return
-    end
+    if not sell then notify("Money","No IceFruit Sell found.") return end
 
     local origCF=P.Character and P.Character.HumanoidRootPart and P.Character.HumanoidRootPart.CFrame
 
+    -- buy missing items
     local exo=RS:FindFirstChild("ExoticShopRemote",true)
     if exo then
         for _,name in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag","Ice-Fruit Cupz"}) do
@@ -535,8 +529,9 @@ A.GenerateMaxIllegalMoney=function()
             end
         end
     end
-    notify("Money","Bought base items.")
+    notify("Money","Bought items.")
 
+    -- tp to stove and anchor
     local cp=stove:FindFirstChild("CookPart") or stove.PrimaryPart
         or stove:FindFirstChildWhichIsA("BasePart",true)
     if not cp then notify("Money","Stove has no CookPart.") return end
@@ -550,12 +545,13 @@ A.GenerateMaxIllegalMoney=function()
     if hrp then hrp.Anchored=true end
     task.wait(0.4)
 
+    notify("Money","Turning stove on...")
     pcall(function() fireproximityprompt(prompt) end)
     task.wait(1.8)
 
     for _,name in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag"}) do
         if eqName(name) then
-            notify("Money","Cooking "..name.."...")
+            notify("Money","Adding "..name)
             task.wait(1)
             pcall(function() fireproximityprompt(prompt) end)
             task.wait(3)
@@ -565,14 +561,14 @@ A.GenerateMaxIllegalMoney=function()
     end
 
     if findCup() then
-        notify("Money","Brewing... waiting for cup.")
+        notify("Money","Brewing...")
         local start=os.clock()
         local cap=360
         while (os.clock()-start)<cap do
             pcall(function() fireproximityprompt(prompt) end)
             task.wait(0.5)
             if findFull() then
-                notify("Money","Ready after "..math.floor(os.clock()-start).."s.")
+                notify("Money","Ready after "..math.floor(os.clock()-start).."s")
                 break
             end
             if not stoveBusy(cp) then
