@@ -1,14 +1,11 @@
---[[ aqx tabs — fully organized: Home, Player, Target, Vehicle, Money, Farm, Shop, Combat, Visuals, Safe, Teleport, Extra ]]
+--[[ aqx tabs — fully organized ]]
 
 local A=getgenv().aqx
 assert(A and A.Modules3Loaded,"aqx modules3 not loaded")
 local Players=A.Players local RS=A.RS local LP=A.LP
 
--- ═══════════════════════════════════════════════════════════════
 -- HOME
--- ═══════════════════════════════════════════════════════════════
 local tHome=A.makeTab("Home")
-
 local g=tHome:AddGroup("Head Tag")
 local HTS=A.MiamiHeadTagSettings
 g:AddToggle("aqxHeadTag",{Text="Enable Head Text",Default=true,Callback=function(v)
@@ -117,11 +114,8 @@ g:AddButton("Copy Discord",function()
     A.notify("Discord","Copied discord.gg/tacoscripts")
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- PLAYER
--- ═══════════════════════════════════════════════════════════════
 local tPlayer=A.makeTab("Player")
-
 local g=tPlayer:AddGroup("Local Player")
 g:AddToggle("aqxFPSBoost",{Text="FPS Boost (Low Graphics)",Default=false,Callback=function(state)
     if state then
@@ -194,14 +188,10 @@ g:AddToggle("aqxAutoGrab",{Text="Auto Steal Dropped Cash",Default=false,Callback
 local g=tPlayer:AddGroup("Respawn")
 g:AddToggle("aqxFaster",{Text="Faster Respawn",Default=false,Callback=function(s) A.FasterRespawn=s end})
 g:AddToggle("aqxRespawnWhere",{Text="Respawn Where You Died",Default=false,Callback=function(s) A.RespawnWhereYouDied=s end})
-g:AddToggle("aqxKeepTools",{Text="Keep Tools On Death",Default=false,Callback=function(s) A.KeepToolsOnDeath=s end})
 g:AddToggle("aqxAutoHelp",{Text="Auto Get Help",Default=false,Callback=function(s) A.AutoFOnLowHealth=s end})
 
--- ═══════════════════════════════════════════════════════════════
 -- TARGET
--- ═══════════════════════════════════════════════════════════════
 local tTarget=A.makeTab("Target")
-
 local g=tTarget:AddGroup("Select Target")
 local TPN=A.getTargetPlayerList()
 A.TargetUtilities.SelectedPlayer=TPN[1] or ""
@@ -241,11 +231,8 @@ g:AddButton("God Player - Hold Gun",function()
     else A.notify("Target","No valid target.") end
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- VEHICLE
--- ═══════════════════════════════════════════════════════════════
 local tVeh=A.makeTab("Vehicle")
-
 local g=tVeh:AddGroup("Car Fly")
 g:AddToggle("aqxCarFly",{Text="Car Fly",Default=false,Callback=function(s)
     if s then A.StartCarFly() else A.StopCarFly() end
@@ -253,12 +240,10 @@ end})
 g:AddSlider("aqxCarFlySpeed",{Text="Car Fly Speed",Min=20,Max=300,Default=120,Callback=function(v)
     A.Config.TheBronx.carflyspeed=v A.CarFly.Speed=v
 end})
-
 local g=tVeh:AddGroup("Vehicle Mods")
 g:AddToggle("aqxVehSpeed",{Text="Vehicle Speed Boost",Default=false,Callback=function(s) A.VehicleModifications.SpeedEnabled=s end})
 g:AddSlider("aqxVehSpeedVal",{Text="Speed Multiplier",Min=1,Max=25,Default=5,Callback=function(v) A.VehicleModifications.SpeedValue=v/1000 end})
 g:AddToggle("aqxVehStop",{Text="Instant Stop (V)",Default=false,Callback=function(s) A.VehicleModifications.InstantStop=s end})
-
 local g=tVeh:AddGroup("Utilities")
 g:AddButton("Bring Nearest Car",function()
     local c=LP.Character if not c then return end
@@ -278,11 +263,8 @@ g:AddButton("Bring Nearest Car",function()
     A.notify("Bring Car","Car brought!")
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- MONEY
--- ═══════════════════════════════════════════════════════════════
 local tMoney=A.makeTab("Money")
-
 local g=tMoney:AddGroup("Money Generation")
 g:AddButton("Inf Money (hold cupz)",function()
     A.notify("Inf Money","Triggered.")
@@ -297,7 +279,6 @@ g:AddButton("Buy Ice-Fruit [ITEMS]",function()
 end)
 g:AddButton("Clean All Filthy Money",A.CleanAllFilthyMoney)
 g:AddToggle("aqxDrop10k",{Text="Auto Drop 10k",Default=false,Callback=function(s) A.MoneyDropEnabled=s end})
-
 local g=tMoney:AddGroup("Bank / ATM")
 g:AddInput("aqxWithdraw",{Text="Withdraw Amount",Placeholder="Max 90,000",Numeric=true,Callback=function(v)
     local a=tonumber(v)
@@ -314,11 +295,8 @@ g:AddInput("aqxDeposit",{Text="Deposit Amount",Placeholder="Max 30,000",Numeric=
     end
 end})
 
--- ═══════════════════════════════════════════════════════════════
 -- FARM
--- ═══════════════════════════════════════════════════════════════
 local tFarm=A.makeTab("Farm")
-
 local g=tFarm:AddGroup("Autofarms")
 local dumpFlag=false
 g:AddButton("Dumpster Autofarm",function()
@@ -337,11 +315,8 @@ g:AddButton("Construction Autofarm",function()
     end
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- SHOP
--- ═══════════════════════════════════════════════════════════════
 local tShop=A.makeTab("Shop")
-
 local function qb(name,item,cat)
     task.spawn(function()
         local ok,b,p=pcall(A.qbDoBuy,item,cat)
@@ -349,7 +324,6 @@ local function qb(name,item,cat)
         else A.notify("Shop","Failed: "..tostring(ok and p or b)) end
     end)
 end
-
 local g=tShop:AddGroup("Quick Picks")
 g:AddButton("BagElite",function() qb("BagElite","BagElite","BAGS") end)
 g:AddButton("Shiesty",function() qb("Shiesty","Shiesty","MAIN") end)
@@ -459,11 +433,8 @@ g:AddDropdown("aqxQuickOtherSelect",{Text="World Item",Values=otherOptions,Defau
     Callback=function(v) selectedOther=tostring(v) end})
 g:AddButton("Buy Selected World Item",function() qb(selectedOther,selectedOther,"OTHER") end)
 
--- ═══════════════════════════════════════════════════════════════
 -- COMBAT
--- ═══════════════════════════════════════════════════════════════
 local tCombat=A.makeTab("Combat")
-
 local g=tCombat:AddGroup("Weapon Modifications")
 local function bindToggle(display,key,flag)
     g:AddToggle(flag,{Text=display,Default=false,Callback=function(s)
@@ -506,11 +477,8 @@ g:AddDropdown("aqxGunColorPick",{Text="Gun Color",
         A.GunChamsColor=cols[tostring(v)] or Color3.fromRGB(0,200,0)
     end})
 
--- ═══════════════════════════════════════════════════════════════
 -- VISUALS
--- ═══════════════════════════════════════════════════════════════
 local tVis=A.makeTab("Visuals")
-
 local g=tVis:AddGroup("World")
 g:AddToggle("aqxFullbright",{Text="Fullbright",Default=false,Callback=function(v) A.WorldVisuals.Fullbright=v end})
 g:AddToggle("aqxSat",{Text="Enable Saturation",Default=false,Callback=function(v) A.WorldVisuals.SaturationEnabled=v end})
@@ -558,11 +526,8 @@ g:AddDropdown("aqxHitboxType",{Text="Type",Values={"Block","Ball","Cylinder"},De
     Callback=function(v) A.HitboxVisuals.Type=tostring(v) end})
 g:AddToggle("aqxHitboxTeam",{Text="Skip Teammates",Default=false,Callback=function(v) A.HitboxVisuals.TeamCheck=v end})
 
--- ═══════════════════════════════════════════════════════════════
 -- SAFE
--- ═══════════════════════════════════════════════════════════════
 local tSafe=A.makeTab("Safe")
-
 local g=tSafe:AddGroup("Safe")
 local safeItems=A.GetSafeItems()
 if #safeItems==0 then safeItems={"(empty - press Refresh)"} end
@@ -637,6 +602,63 @@ end})
 g:AddButton("Safe TP",A.SafeTP)
 g:AddToggle("aqxAutoDropTools",{Text="Auto Drop Tools",Default=false,Callback=function(s) A.ToggleAutoDrop(s) end})
 
+local g=tSafe:AddGroup("Market Dupe")
+g:AddToggle("aqxMarketKeepTools",{Text="Keep Tools On Death",Default=false,Callback=function(s) A.KeepToolsOnDeath=s end})
+local selectedMarketItem="None"
+local marketItemsList={"None"}
+local function refreshMarketList()
+    marketItemsList={"None"}
+    local bp=LP:FindFirstChild("Backpack")
+    local ch=LP.Character
+    local seen={}
+    for _,src in ipairs({bp,ch}) do
+        if src then
+            for _,t in ipairs(src:GetChildren()) do
+                if t:IsA("Tool") and not A.dupeBlacklist[t.Name] and not seen[t.Name] then
+                    seen[t.Name]=true
+                    table.insert(marketItemsList,t.Name)
+                end
+            end
+        end
+    end
+    table.sort(marketItemsList)
+end
+refreshMarketList()
+local marketDD=g:AddDropdown("aqxMarketDupeItem",{Text="Select Tool",Values=marketItemsList,Default="None",
+    Callback=function(v) selectedMarketItem=tostring(v) end})
+g:AddButton("Refresh Tool List",function()
+    refreshMarketList()
+    if marketDD then marketDD:SetValues(marketItemsList) end
+    selectedMarketItem="None"
+    A.notify("Market Dupe","Refreshed: "..(#marketItemsList-1).." tools")
+end)
+g:AddButton("Market Dupe Once",function()
+    if selectedMarketItem=="None" then
+        A.notify("Market Dupe","Select a tool first.") return
+    end
+    task.spawn(function()
+        local ok,reason=A.MarketDupeOnce(selectedMarketItem)
+        if ok then A.notify("Market Dupe","Dupe succeeded.")
+        else A.notify("Market Dupe","Failed: "..tostring(reason)) end
+    end)
+end)
+g:AddButton("Market Dupe x15",function()
+    if selectedMarketItem=="None" then
+        A.notify("Market Dupe","Select a tool first.") return
+    end
+    A.MarketDupeLoop(selectedMarketItem,15)
+end)
+g:AddButton("Market Dupe ALL Tools",function()
+    A.MarketDupeAll()
+end)
+g:AddButton("Check Market Status",function()
+    if selectedMarketItem=="None" then return end
+    local onMarket=A.MarketHasItem(selectedMarketItem)
+    local inBag=A.BackpackHasItem(selectedMarketItem)
+    A.notify("Market Dupe",
+        selectedMarketItem..": market="..tostring(onMarket).." bag="..tostring(inBag))
+end)
+
 local g=tSafe:AddGroup("Info")
 local safeStatusLbl=g:AddLabel("Safe Status: Ready")
 local dupeCounterLbl=g:AddLabel("Total Duped: 0")
@@ -650,11 +672,8 @@ task.spawn(function()
     end
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- TELEPORT
--- ═══════════════════════════════════════════════════════════════
 local tTp=A.makeTab("Teleport")
-
 local g=tTp:AddGroup("Quick Teleport")
 local selTP=A.teleportNames[1]
 g:AddDropdown("aqxTpLoc",{Text="Location",Values=A.teleportNames,Default=selTP,
@@ -704,17 +723,11 @@ local g=tTp:AddGroup("Utility")
 g:AddButton("Dynamic Cook Pot",A.TeleportToCookPot)
 g:AddButton("Return to Spawn",function()
     local spawn=workspace:FindFirstChildOfClass("SpawnLocation")
-    if spawn then
-        A.TP(spawn.CFrame)
-        A.notify("TP","Returned to spawn",2)
-    end
+    if spawn then A.TP(spawn.CFrame) A.notify("TP","Returned to spawn",2) end
 end)
 
--- ═══════════════════════════════════════════════════════════════
 -- EXTRA
--- ═══════════════════════════════════════════════════════════════
 local tExtra=A.makeTab("Extra")
-
 local g=tExtra:AddGroup("Emotes")
 g:AddDropdown("aqxEmote",{Text="Select Emote",Values=A.MianiEmoteNames,Default="Take The L",
     Callback=function(v) if A.MianiEmotes[v] then A.MianiSelectedEmoteName=v end end})
