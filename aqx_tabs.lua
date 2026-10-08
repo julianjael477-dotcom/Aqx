@@ -1,21 +1,139 @@
---[[ aqx tabs — builds all tabs ]]
+--[[ aqx tabs — fully organized: Home, Player, Target, Vehicle, Money, Farm, Shop, Combat, Visuals, Safe, Teleport, Extra ]]
 
 local A=getgenv().aqx
 assert(A and A.Modules3Loaded,"aqx modules3 not loaded")
 local Players=A.Players local RS=A.RS local LP=A.LP
 
--- PLAYER
-local tp=A.makeTab("Player")
+-- ═══════════════════════════════════════════════════════════════
+-- HOME
+-- ═══════════════════════════════════════════════════════════════
+local tHome=A.makeTab("Home")
 
-local g=tp:AddGroup("Local Player")
-g:AddToggle("aqxFPSBoost",{Text="FPS Boost (Low Graphics)",Default=false,Callback=function(s)
-    if s then
+local g=tHome:AddGroup("Head Tag")
+local HTS=A.MiamiHeadTagSettings
+g:AddToggle("aqxHeadTag",{Text="Enable Head Text",Default=true,Callback=function(v)
+    HTS.Enabled=v
+    if not v and LP.Character and A.destroyHeadTag then A.destroyHeadTag(LP.Character)
+    elseif v and LP.Character and A.attachHeadTag then task.defer(A.attachHeadTag,LP.Character) end
+end})
+g:AddInput("aqxHeadText",{Text="Text",Default="aqx",Callback=function(v)
+    HTS.Text=tostring(v)~="" and tostring(v) or "aqx"
+end})
+g:AddDropdown("aqxHeadStyle",{Text="Animation",
+    Values={"Taco Green","Taco Wave","Rainbow Wave","Fire","Ice","Toxic","Royal"},
+    Default="Taco Green",Callback=function(v) HTS.Style=tostring(v) end})
+g:AddToggle("aqxHeadPulse",{Text="Text Pulse",Default=true,Callback=function(v) HTS.Pulse=v end})
+g:AddSlider("aqxHeadSize",{Text="Text Size",Min=18,Max=52,Default=32,Callback=function(v) HTS.Size=v end})
+g:AddSlider("aqxHeadHeight",{Text="Height",Min=2,Max=7,Default=3.4,Callback=function(v) HTS.Height=v end})
+
+local g=tHome:AddGroup("My Money")
+local function valueToNumber(o)
+    if not o then return nil end
+    local ok,v=pcall(function() return o.Value end)
+    if ok and tonumber(v) then return tonumber(v) end
+end
+local function findMoneyValue(c,names,recursive)
+    if not c then return nil end
+    local lk={} for _,n in ipairs(names) do lk[string.lower(n)]=true end
+    for _,ch in ipairs(c:GetChildren()) do
+        if lk[string.lower(ch.Name)] then
+            local v=valueToNumber(ch) if v~=nil then return v end
+        end
+    end
+    if recursive then
+        for _,ch in ipairs(c:GetDescendants()) do
+            if lk[string.lower(ch.Name)] then
+                local v=valueToNumber(ch) if v~=nil then return v end
+            end
+        end
+    end
+end
+local function getMyMoneyValues()
+    local cN={"Money","Cash","Wallet","Bank","Coins"}
+    local dN={"FilthyStack","FilthyMoney","DirtyMoney","DirtyCash","IllegalMoney","Dirty","Filthy"}
+    local stored=LP:FindFirstChild("stored") or LP:FindFirstChild("Stored")
+    local leader=LP:FindFirstChild("leaderstats") or LP:FindFirstChild("Leaderstats") or LP:FindFirstChild("stats")
+    local clean=findMoneyValue(stored,{"Money"},false) or findMoneyValue(leader,cN,false)
+        or findMoneyValue(LP,cN,false) or findMoneyValue(LP,cN,true)
+    local dirty=findMoneyValue(stored,{"FilthyStack"},false) or findMoneyValue(stored,dN,false)
+        or findMoneyValue(LP,dN,false) or findMoneyValue(LP,dN,true)
+    return clean,dirty
+end
+local function getBankValue2()
+    local stored=LP:FindFirstChild("stored")
+    local leader=LP:FindFirstChild("leaderstats") or LP:FindFirstChild("stats")
+    return findMoneyValue(stored,{"Bank"},false) or findMoneyValue(leader,{"Bank"},false)
+        or findMoneyValue(LP,{"Bank"},true)
+end
+local function formatMoney(a)
+    local f=tostring(math.floor(tonumber(a) or 0))
+    while true do
+        local nf,c=f:gsub("^(-?%d+)(%d%d%d)","%1,%2")
+        f=nf if c==0 then break end
+    end
+    return "$"..f
+end
+local myClean=g:AddLabel("Clean: ...")
+local myBank=g:AddLabel("Bank: ...")
+local myDirty=g:AddLabel("Dirty: ...")
+local myMade=g:AddLabel("Made: $0")
+local myLost=g:AddLabel("Lost: $0")
+getgenv().MoneyMadeTotal=0
+getgenv().MoneyLostTotal=0
+local lastClean=nil
+task.spawn(function()
+    while task.wait(0.3) do
+        local c,d=getMyMoneyValues()
+        local b=getBankValue2()
+        if lastClean~=nil and c~=nil then
+            local delta=c-lastClean
+            if delta>0 then getgenv().MoneyMadeTotal=getgenv().MoneyMadeTotal+delta
+            elseif delta<0 then getgenv().MoneyLostTotal=getgenv().MoneyLostTotal+(-delta) end
+        end
+        lastClean=c
+        pcall(function()
+            myClean:SetText("Clean: "..(c~=nil and formatMoney(c) or "..."))
+            myBank:SetText("Bank: "..(b~=nil and formatMoney(b) or "..."))
+            myDirty:SetText("Dirty: "..(d~=nil and formatMoney(d) or "..."))
+            myMade:SetText("Made: "..formatMoney(getgenv().MoneyMadeTotal))
+            myLost:SetText("Lost: "..formatMoney(getgenv().MoneyLostTotal))
+        end)
+    end
+end)
+
+local g=tHome:AddGroup("Menu")
+g:AddButton("Unload UI",function()
+    for _,fn in ipairs(A.UnloadCallbacks) do pcall(fn) end
+    if A.Gui then A.Gui:Destroy() end
+end)
+g:AddButton("Rejoin Server",function()
+    pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId,game.JobId) end)
+end)
+g:AddButton("Server Hop",function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/BENZZY420/SERVERHOP/refs/heads/main/SERVERHOP"))()
+end)
+g:AddButton("Copy Discord",function()
+    if setclipboard then setclipboard("https://discord.gg/tacoscripts") end
+    A.notify("Discord","Copied discord.gg/tacoscripts")
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- PLAYER
+-- ═══════════════════════════════════════════════════════════════
+local tPlayer=A.makeTab("Player")
+
+local g=tPlayer:AddGroup("Local Player")
+g:AddToggle("aqxFPSBoost",{Text="FPS Boost (Low Graphics)",Default=false,Callback=function(state)
+    if state then
         for _,o in ipairs(workspace:GetDescendants()) do
-            if o:IsA("BasePart") then pcall(function() o.Material=Enum.Material.Plastic o.CastShadow=false end)
-            elseif o:IsA("Decal") or o:IsA("Texture") then pcall(function() o.Transparency=1 end)
+            if o:IsA("BasePart") then
+                pcall(function() o.Material=Enum.Material.Plastic o.CastShadow=false end)
+            elseif o:IsA("Decal") or o:IsA("Texture") then
+                pcall(function() o.Transparency=1 end)
             elseif o:IsA("ParticleEmitter") or o:IsA("Trail") or o:IsA("Beam")
                 or o:IsA("Smoke") or o:IsA("Fire") or o:IsA("Sparkles") or o:IsA("PostEffect") then
-                pcall(function() o.Enabled=false end) end
+                pcall(function() o.Enabled=false end)
+            end
         end
         pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end)
         A.notify("FPS Boost","Low graphics enabled.")
@@ -40,11 +158,8 @@ g:AddToggle("aqxInfStamina",{Text="Infinite Stamina",Default=false,Callback=func
     if ss then ss.Enabled=not s end
 end})
 g:AddToggle("aqxInstantInt",{Text="Instant Interaction",Default=false,Callback=function(s) A.refreshPrompts(s) end})
-g:AddToggle("aqxStealLoot",{Text="Auto Steal Lootbags",Default=false,Callback=function(s) A.AutoStealLootbags=s end})
-g:AddToggle("aqxPickupBags",{Text="Auto Pickup Bags",Default=false,Callback=function(s) A.AutoPickupBags=s end})
-g:AddToggle("aqxNoBlood",{Text="Disable Blood Effects",Default=false,Callback=function(s) A.DisableBloodEffects=s end})
 g:AddToggle("aqxBypassCars",{Text="Bypass Locked Cars",Default=false,Callback=function(s) A.BypassLockedCars=s end})
-g:AddToggle("aqxAutoGrab",{Text="Auto Steal Dropped Cash",Default=false,Callback=function(s) A.AutoGrabMoney=s end})
+g:AddToggle("aqxNoBlood",{Text="Disable Blood Effects",Default=false,Callback=function(s) A.DisableBloodEffects=s end})
 g:AddToggle("aqxAntiFling",{Text="Anti Car Fling",Default=false,Callback=function(s)
     if s then A.StartAntiCarFling() else A.StopAntiCarFling() end
 end})
@@ -53,7 +168,7 @@ g:AddToggle("aqxAntiJumpCD",{Text="Anti Jump Cooldown",Default=false,Callback=fu
 end})
 g:AddToggle("aqxAntiAFK",{Text="Anti-AFK",Default=false,Callback=function(s) A.AntiAFKEnabled=s end})
 
-local g=tp:AddGroup("Movement")
+local g=tPlayer:AddGroup("Movement")
 g:AddToggle("aqxNoBob",{Text="Disable Camera Bobbing",Default=false,Callback=function(s) A.NoCameraBob=s end})
 g:AddToggle("aqxWalk",{Text="WalkSpeed",Default=false,Callback=function(s)
     if s then A.LuhjayyWalkStart() else A.LuhjayyWalkStop() end
@@ -71,64 +186,26 @@ g:AddSlider("aqxFlySpeed",{Text="Fly Speed",Min=20,Max=300,Default=80,Callback=f
     A.MiamiFlyData.Speed=v
 end})
 
-local g=tp:AddGroup("Misc")
+local g=tPlayer:AddGroup("Interactions")
+g:AddToggle("aqxStealLoot",{Text="Auto Steal Lootbags",Default=false,Callback=function(s) A.AutoStealLootbags=s end})
+g:AddToggle("aqxPickupBags",{Text="Auto Pickup Bags",Default=false,Callback=function(s) A.AutoPickupBags=s end})
+g:AddToggle("aqxAutoGrab",{Text="Auto Steal Dropped Cash",Default=false,Callback=function(s) A.AutoGrabMoney=s end})
+
+local g=tPlayer:AddGroup("Respawn")
 g:AddToggle("aqxFaster",{Text="Faster Respawn",Default=false,Callback=function(s) A.FasterRespawn=s end})
 g:AddToggle("aqxRespawnWhere",{Text="Respawn Where You Died",Default=false,Callback=function(s) A.RespawnWhereYouDied=s end})
 g:AddToggle("aqxKeepTools",{Text="Keep Tools On Death",Default=false,Callback=function(s) A.KeepToolsOnDeath=s end})
 g:AddToggle("aqxAutoHelp",{Text="Auto Get Help",Default=false,Callback=function(s) A.AutoFOnLowHealth=s end})
 
-local g=tp:AddGroup("Money")
-g:AddButton("Inf Money (hold cupz)",function()
-    A.notify("Inf Money","Triggered.")
-    task.spawn(function() pcall(A.InfMoneyHoldCupz) end)
-end)
-g:AddButton("Generate Max Illegal Money",function()
-    A.notify("Illegal Money","Generating...")
-    task.spawn(function() pcall(A.GenerateMaxIllegalMoney) end)
-end)
-g:AddButton("Teleport [COOK POT]",A.TeleportToCookPot)
-g:AddButton("Buy Ice-Fruit [ITEMS]",function()
-    A.notify("Buy Items","Buying...") A.SetupInfiniteMoney()
-end)
-g:AddButton("Clean All Filthy Money",A.CleanAllFilthyMoney)
-g:AddToggle("aqxDrop10k",{Text="Auto Drop 10k",Default=false,Callback=function(s) A.MoneyDropEnabled=s end})
+-- ═══════════════════════════════════════════════════════════════
+-- TARGET
+-- ═══════════════════════════════════════════════════════════════
+local tTarget=A.makeTab("Target")
 
-local g=tp:AddGroup("Quick Buy")
-local function qb(name,item,cat)
-    task.spawn(function()
-        local ok,b,p=pcall(A.qbDoBuy,item,cat)
-        if ok and b then A.notify("Quick Buy",name.." purchased")
-        else A.notify("Quick Buy","Failed: "..tostring(ok and p or b)) end
-    end)
-end
-g:AddButton("Buy BagElite",function() qb("BagElite","BagElite","BAGS") end)
-g:AddButton("Buy Draco",function() qb("Draco","Draco","OTHER") end)
-g:AddButton("Buy Shiesty",function() qb("Shiesty","Shiesty","MAIN SHOP") end)
-g:AddButton("Buy Lemonade",function() qb("Lemonade","Lemonade","EXOTIC") end)
-g:AddButton("Buy Bandage",function() qb("Bandage","Bandage","EXOTIC") end)
-
-local g=tp:AddGroup("Bank / ATM")
-g:AddInput("aqxWithdraw",{Text="Withdraw Amount",Placeholder="Max 90,000",Numeric=true,Callback=function(v)
-    local a=tonumber(v)
-    if a and a>0 and a<=90000 then
-        pcall(function() RS.BankAction:FireServer("with",a) end)
-        A.notify("Withdraw","Withdrew $"..a)
-    end
-end})
-g:AddInput("aqxDeposit",{Text="Deposit Amount",Placeholder="Max 30,000",Numeric=true,Callback=function(v)
-    local a=tonumber(v)
-    if a and a>0 and a<=30000 then
-        pcall(function() RS.BankAction:FireServer("depo",a) end)
-        A.notify("Deposit","Deposited $"..a)
-    end
-end})
-
--- MAIN
-local tm=A.makeTab("Main")
-local g=tm:AddGroup("Target")
+local g=tTarget:AddGroup("Select Target")
 local TPN=A.getTargetPlayerList()
 A.TargetUtilities.SelectedPlayer=TPN[1] or ""
-local tdd=g:AddDropdown("aqxTargetPlayer",{Text="Select Player",Values=TPN,
+local tdd=g:AddDropdown("aqxTargetPlayer",{Text="Player",Values=TPN,
     Default=A.TargetUtilities.SelectedPlayer,
     Callback=function(v) A.TargetUtilities.SelectedPlayer=tostring(v) end})
 g:AddButton("Refresh Player List",function()
@@ -142,34 +219,47 @@ g:AddButton("Pass to Nearest Player",function()
         A.notify("Pass","Passed to nearest.")
     end)
 end)
+
+local g=tTarget:AddGroup("Actions")
 g:AddToggle("aqxSpectate",{Text="Spectate Player",Default=false,Callback=function(s) A.TargetUtilities.SpectatePlayer=s end})
 g:AddToggle("aqxBringNearest",{Text="Bring Nearest Player",Default=false,Callback=function(s) A.TargetUtilities.BringingNearestPlayer=s end})
 g:AddToggle("aqxBringPlayer",{Text="Bring Player",Default=false,Callback=function(s) A.TargetUtilities.BringingPlayer=s end})
-g:AddToggle("aqxAutoKill",{Text="Auto Kill Player - Gun",Default=false,Callback=function(s) A.TargetUtilities.AutoKill=s end})
-g:AddButton("Car Fling Selected Player",A.CarFlingSelectedPlayer)
-g:AddToggle("aqxAutoRagdoll",{Text="Auto Ragdoll Player - Gun",Default=false,Callback=function(s) A.TargetUtilities.AutoRagdoll=s end})
 g:AddButton("Teleport To Player",function()
     local t=A.getSelectedTargetPlayer()
     if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart") then
         A.TP(t.Character.HumanoidRootPart.CFrame*CFrame.new(3,0,0))
     else A.notify("Target","No valid target.") end
 end)
+g:AddButton("Car Fling Selected Player",A.CarFlingSelectedPlayer)
+
+local g=tTarget:AddGroup("Auto Combat")
+g:AddToggle("aqxAutoKill",{Text="Auto Kill Player - Gun",Default=false,Callback=function(s) A.TargetUtilities.AutoKill=s end})
+g:AddToggle("aqxAutoRagdoll",{Text="Auto Ragdoll Player - Gun",Default=false,Callback=function(s) A.TargetUtilities.AutoRagdoll=s end})
 g:AddButton("God Player - Hold Gun",function()
     local t=A.getSelectedTargetPlayer()
     if t then A.targetGunRemote(t.Name,"HumanoidRootPart",math.huge)
     else A.notify("Target","No valid target.") end
 end)
 
-local g=tm:AddGroup("Vehicle")
+-- ═══════════════════════════════════════════════════════════════
+-- VEHICLE
+-- ═══════════════════════════════════════════════════════════════
+local tVeh=A.makeTab("Vehicle")
+
+local g=tVeh:AddGroup("Car Fly")
 g:AddToggle("aqxCarFly",{Text="Car Fly",Default=false,Callback=function(s)
     if s then A.StartCarFly() else A.StopCarFly() end
 end})
 g:AddSlider("aqxCarFlySpeed",{Text="Car Fly Speed",Min=20,Max=300,Default=120,Callback=function(v)
     A.Config.TheBronx.carflyspeed=v A.CarFly.Speed=v
 end})
+
+local g=tVeh:AddGroup("Vehicle Mods")
 g:AddToggle("aqxVehSpeed",{Text="Vehicle Speed Boost",Default=false,Callback=function(s) A.VehicleModifications.SpeedEnabled=s end})
 g:AddSlider("aqxVehSpeedVal",{Text="Speed Multiplier",Min=1,Max=25,Default=5,Callback=function(v) A.VehicleModifications.SpeedValue=v/1000 end})
 g:AddToggle("aqxVehStop",{Text="Instant Stop (V)",Default=false,Callback=function(s) A.VehicleModifications.InstantStop=s end})
+
+local g=tVeh:AddGroup("Utilities")
 g:AddButton("Bring Nearest Car",function()
     local c=LP.Character if not c then return end
     local hrp=c:FindFirstChild("HumanoidRootPart") local h=c:FindFirstChildWhichIsA("Humanoid")
@@ -188,20 +278,384 @@ g:AddButton("Bring Nearest Car",function()
     A.notify("Bring Car","Car brought!")
 end)
 
+-- ═══════════════════════════════════════════════════════════════
+-- MONEY
+-- ═══════════════════════════════════════════════════════════════
+local tMoney=A.makeTab("Money")
+
+local g=tMoney:AddGroup("Money Generation")
+g:AddButton("Inf Money (hold cupz)",function()
+    A.notify("Inf Money","Triggered.")
+    task.spawn(function() pcall(A.InfMoneyHoldCupz) end)
+end)
+g:AddButton("Generate Max Illegal Money",function()
+    A.notify("Illegal Money","Generating...")
+    task.spawn(function() pcall(A.GenerateMaxIllegalMoney) end)
+end)
+g:AddButton("Buy Ice-Fruit [ITEMS]",function()
+    A.notify("Buy Items","Buying...") A.SetupInfiniteMoney()
+end)
+g:AddButton("Clean All Filthy Money",A.CleanAllFilthyMoney)
+g:AddToggle("aqxDrop10k",{Text="Auto Drop 10k",Default=false,Callback=function(s) A.MoneyDropEnabled=s end})
+
+local g=tMoney:AddGroup("Bank / ATM")
+g:AddInput("aqxWithdraw",{Text="Withdraw Amount",Placeholder="Max 90,000",Numeric=true,Callback=function(v)
+    local a=tonumber(v)
+    if a and a>0 and a<=90000 then
+        pcall(function() RS.BankAction:FireServer("with",a) end)
+        A.notify("Withdraw","Withdrew $"..a)
+    end
+end})
+g:AddInput("aqxDeposit",{Text="Deposit Amount",Placeholder="Max 30,000",Numeric=true,Callback=function(v)
+    local a=tonumber(v)
+    if a and a>0 and a<=30000 then
+        pcall(function() RS.BankAction:FireServer("depo",a) end)
+        A.notify("Deposit","Deposited $"..a)
+    end
+end})
+
+-- ═══════════════════════════════════════════════════════════════
 -- FARM
-local tf=A.makeTab("Farm")
-local g=tf:AddGroup("Autofarms")
-local df=false
+-- ═══════════════════════════════════════════════════════════════
+local tFarm=A.makeTab("Farm")
+
+local g=tFarm:AddGroup("Autofarms")
+local dumpFlag=false
 g:AddButton("Dumpster Autofarm",function()
-    if not df then df=true A.startDumpsterAutofarm() A.notify("Autofarm","Dumpster started.")
-    else df=false A.stopDumpsterAutofarm() A.notify("Autofarm","Dumpster stopped.") end
+    if not dumpFlag then
+        dumpFlag=true A.startDumpsterAutofarm() A.notify("Autofarm","Dumpster started.")
+    else
+        dumpFlag=false A.stopDumpsterAutofarm() A.notify("Autofarm","Dumpster stopped.")
+    end
 end)
-local cf2=false
+local constFlag=false
 g:AddButton("Construction Autofarm",function()
-    if not cf2 then cf2=true A.startConstructionAutofarm() A.notify("Autofarm","Construction started.")
-    else cf2=false A.stopConstructionAutofarm() A.notify("Autofarm","Construction stopped.") end
+    if not constFlag then
+        constFlag=true A.startConstructionAutofarm() A.notify("Autofarm","Construction started.")
+    else
+        constFlag=false A.stopConstructionAutofarm() A.notify("Autofarm","Construction stopped.")
+    end
 end)
-local g=tf:AddGroup("Quick TPs")
+
+-- ═══════════════════════════════════════════════════════════════
+-- SHOP
+-- ═══════════════════════════════════════════════════════════════
+local tShop=A.makeTab("Shop")
+
+local function qb(name,item,cat)
+    task.spawn(function()
+        local ok,b,p=pcall(A.qbDoBuy,item,cat)
+        if ok and b then A.notify("Shop",name.." purchased")
+        else A.notify("Shop","Failed: "..tostring(ok and p or b)) end
+    end)
+end
+
+local g=tShop:AddGroup("Quick Picks")
+g:AddButton("BagElite",function() qb("BagElite","BagElite","BAGS") end)
+g:AddButton("Shiesty",function() qb("Shiesty","Shiesty","MAIN") end)
+g:AddButton("Lemonade",function() qb("Lemonade","Lemonade","EXOTIC") end)
+g:AddButton("Bandage",function() qb("Bandage","Bandage","EXOTIC") end)
+
+local g=tShop:AddGroup("Guns")
+local selectedGun="Draco"
+local gunOptions={
+    ["Draco + 7.62"]={"Draco","7.62"},
+    ["Clear Mag Drac + 7.62"]={"ClearMagDrac","7.62"},
+    ["AR Pistol + 5.56"]={"ARPistol","5.56"},
+    ["223 Tan + 5.56"]={"223Tan","5.56"},
+    ["HP Browning + Ext"]={"HPBrowning Ext",".Extended"},
+    ["Glock 17 + Ext"]={"Glock17",".Extended"},
+    ["Glock 22 + Ext"]={"Glock22",".Extended"},
+    ["Springfield XD + Ext"]={"SpringField XD",".Extended"},
+}
+local gunNames={}
+for k in pairs(gunOptions) do table.insert(gunNames,k) end
+table.sort(gunNames)
+g:AddDropdown("aqxQuickGunSelect",{Text="Select Gun",Values=gunNames,Default=gunNames[1],
+    Callback=function(v) selectedGun=tostring(v) end})
+g:AddButton("Buy Selected Gun",function()
+    local data=gunOptions[selectedGun]
+    if not data then A.notify("Shop","Invalid gun") return end
+    task.spawn(function()
+        qb(selectedGun,data[1],"SHOP5")
+        task.wait(0.15)
+        qb(data[2],data[2],"EXOTIC")
+    end)
+end)
+
+local g=tShop:AddGroup("Exotic")
+local selectedExotic="FakeCard"
+local exoticItems={"FakeCard","Ice-Fruit Bag","Ice-Fruit Cupz","FijiWater","FreshWater",
+    "G26","Lemonade","Sledge Hammer","Screw","Bandage"}
+g:AddDropdown("aqxQuickExoticSelect",{Text="Exotic Item",Values=exoticItems,Default="FakeCard",
+    Callback=function(v) selectedExotic=tostring(v) end})
+g:AddButton("Buy Selected Exotic",function() qb(selectedExotic,selectedExotic,"EXOTIC") end)
+
+local g=tShop:AddGroup("Main Shop")
+local selectedMain="Shiesty"
+local mainShopItems={"Shiesty","BluGloves","WhiteGloves","BlackGloves","Water",
+    "YelloCamoGloves","RedCamoGloves","PurpleCamoGloves","RawChicken","RawSteak","WhiteShiesty"}
+g:AddDropdown("aqxQuickMainSelect",{Text="Main Shop Item",Values=mainShopItems,Default="Shiesty",
+    Callback=function(v) selectedMain=tostring(v) end})
+g:AddButton("Buy Selected Main Shop",function() qb(selectedMain,selectedMain,"MAIN") end)
+
+local g=tShop:AddGroup("Ammo / Mags")
+local selectedAmmo="Extended Mag"
+local ammoOptions={
+    ["Extended Mag"]=".Extended",
+    ["Drum Mag"]=".Drum",
+    ["10mm Ammo"]=".10mm",
+    ["FN Mag"]=".FNMag",
+    ["9mm Ammo"]="9mm",
+    ["7.62 Ammo"]="7.62",
+    ["5.56 Ammo"]="5.56",
+}
+local ammoNames={}
+for k in pairs(ammoOptions) do table.insert(ammoNames,k) end
+table.sort(ammoNames)
+g:AddDropdown("aqxQuickAmmoSelect",{Text="Ammo / Mag",Values=ammoNames,Default=ammoNames[1],
+    Callback=function(v) selectedAmmo=tostring(v) end})
+g:AddButton("Buy Selected Ammo",function()
+    local target=ammoOptions[selectedAmmo]
+    if not target then A.notify("Shop","Invalid ammo") return end
+    qb(selectedAmmo,target,"EXOTIC")
+end)
+
+local g=tShop:AddGroup("Bags")
+local selectedBag="SmallBag"
+local bagOptions={}
+pcall(function()
+    if RS:FindFirstChild("BACKPACK_HATS") and RS.BACKPACK_HATS:FindFirstChild("Accessories") then
+        for _,item in ipairs(RS.BACKPACK_HATS.Accessories:GetChildren()) do
+            table.insert(bagOptions,item.Name)
+        end
+    end
+end)
+if #bagOptions==0 then bagOptions={"SmallBag","MediumBag","LargeBag"} end
+table.sort(bagOptions)
+selectedBag=bagOptions[1]
+g:AddDropdown("aqxQuickBagSelect",{Text="Bag",Values=bagOptions,Default=selectedBag,
+    Callback=function(v) selectedBag=tostring(v) end})
+g:AddButton("Buy Selected Bag",function() qb(selectedBag,selectedBag,"BAGS") end)
+
+local g=tShop:AddGroup("World Items")
+local selectedOther="Draco"
+local otherOptions={}
+pcall(function()
+    local seen={}
+    local src=workspace:FindFirstChild("GUNS")
+    local source=src and src:GetChildren() or workspace:GetChildren()
+    for _,item in ipairs(source) do
+        if (item:IsA("Model") or item:IsA("Tool")) and item.Name~="Basketball"
+        and item.Name~="Loader" and not seen[item.Name] then
+            seen[item.Name]=true table.insert(otherOptions,item.Name)
+        end
+    end
+    table.sort(otherOptions)
+end)
+if #otherOptions==0 then otherOptions={"Draco","Glock17","ARPistol"} end
+selectedOther=otherOptions[1]
+g:AddDropdown("aqxQuickOtherSelect",{Text="World Item",Values=otherOptions,Default=selectedOther,
+    Callback=function(v) selectedOther=tostring(v) end})
+g:AddButton("Buy Selected World Item",function() qb(selectedOther,selectedOther,"OTHER") end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- COMBAT
+-- ═══════════════════════════════════════════════════════════════
+local tCombat=A.makeTab("Combat")
+
+local g=tCombat:AddGroup("Weapon Modifications")
+local function bindToggle(display,key,flag)
+    g:AddToggle(flag,{Text=display,Default=false,Callback=function(s)
+        A.WeaponMods[key]=s
+        if key=="InfiniteDamage" then A.WeaponMods.DamageAmplified=s end
+        pcall(A.applyAllWeaponMods)
+    end})
+end
+bindToggle("Infinite Ammo","InfiniteAmmo","aqxInfAmmo")
+bindToggle("Infinite Clips","InfiniteClips","aqxInfClips")
+bindToggle("Infinite Damage","InfiniteDamage","aqxInfDmg")
+bindToggle("Instant Reload","InstantReload","aqxInstReload")
+bindToggle("Instant Equip","InstantEquip","aqxInstEquip")
+bindToggle("80k Bullets","Bullets80k","aqx80k")
+bindToggle("Fully Automatic","Automatic","aqxAuto")
+bindToggle("Disable Jamming","DisableJamming","aqxNoJam")
+bindToggle("Modify Recoil","ModifyRecoilValue","aqxRecoil")
+bindToggle("Modify Spread","ModifySpreadValue","aqxSpread")
+bindToggle("Modify Fire Rate","ModifyFireRate","aqxFireRate")
+g:AddButton("Force 80k Bullets",A.force80k)
+
+local g=tCombat:AddGroup("Weapon Settings")
+g:AddSlider("aqxReloadSpd",{Text="Reload Speed",Min=0.01,Max=1,Default=0.2,
+    Callback=function(v) A.WeaponMods.ReloadSpeed=v pcall(A.applyAllWeaponMods) end})
+g:AddSlider("aqxEquipSpd",{Text="Equip Speed",Min=0.01,Max=1,Default=0.2,
+    Callback=function(v) A.WeaponMods.EquipSpeed=v pcall(A.applyAllWeaponMods) end})
+
+local g=tCombat:AddGroup("Gun Color")
+g:AddToggle("aqxGunColor",{Text="Enable Gun Color",Default=false,Callback=function(s)
+    A.GunChams=s if not s then A.restoreGunColor() end
+end})
+g:AddToggle("aqxRainbowGun",{Text="Rainbow Gun Color",Default=false,Callback=function(s) A.RainbowGun=s end})
+g:AddDropdown("aqxGunColorPick",{Text="Gun Color",
+    Values={"Green","Purple","Red","Blue","Pink","Cyan","Yellow","White"},Default="Green",
+    Callback=function(v)
+        local cols={Green=Color3.fromRGB(0,200,0),Purple=Color3.fromRGB(143,0,255),
+            Red=Color3.fromRGB(255,0,0),Blue=Color3.fromRGB(0,120,255),
+            Pink=Color3.fromRGB(255,80,180),Cyan=Color3.fromRGB(0,255,255),
+            Yellow=Color3.fromRGB(255,255,0),White=Color3.fromRGB(255,255,255)}
+        A.GunChamsColor=cols[tostring(v)] or Color3.fromRGB(0,200,0)
+    end})
+
+-- ═══════════════════════════════════════════════════════════════
+-- VISUALS
+-- ═══════════════════════════════════════════════════════════════
+local tVis=A.makeTab("Visuals")
+
+local g=tVis:AddGroup("World")
+g:AddToggle("aqxFullbright",{Text="Fullbright",Default=false,Callback=function(v) A.WorldVisuals.Fullbright=v end})
+g:AddToggle("aqxSat",{Text="Enable Saturation",Default=false,Callback=function(v) A.WorldVisuals.SaturationEnabled=v end})
+g:AddSlider("aqxSatVal",{Text="Saturation Value",Min=0,Max=200,Default=100,
+    Callback=function(v) A.WorldVisuals.SaturationValue=v/100 end})
+g:AddToggle("aqxFov",{Text="Enable FOV",Default=false,Callback=function(v) A.WorldVisuals.FieldOfViewEnabled=v end})
+g:AddSlider("aqxFovVal",{Text="FOV Value",Min=30,Max=120,Default=70,
+    Callback=function(v) A.WorldVisuals.FieldOfViewValue=v end})
+g:AddToggle("aqxFog",{Text="Enable Fog Color",Default=false,Callback=function(v) A.WorldVisuals.FogColorEnabled=v end})
+g:AddDropdown("aqxFogColor",{Text="Fog Color",Values=A.VisualColorNames,Default="White",
+    Callback=function(v) A.WorldVisuals.FogColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,255,255) end})
+g:AddToggle("aqxAmbient",{Text="Enable Ambient Tint",Default=false,Callback=function(v) A.WorldVisuals.AmbientEnabled=v end})
+g:AddDropdown("aqxAmbientColor",{Text="Ambient Color",Values=A.VisualColorNames,Default="White",
+    Callback=function(v) A.WorldVisuals.AmbientColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,255,255) end})
+
+local g=tVis:AddGroup("Player ESP")
+g:AddToggle("aqxESP",{Text="ESP Enabled",Default=false,Callback=function(v) A.ESPFlags.Enabled=v end})
+g:AddSlider("aqxESPDist",{Text="Render Distance",Min=50,Max=5000,Default=1400,
+    Callback=function(v) A.ESPFlags.RenderDistance=v end})
+g:AddToggle("aqxESPTeam",{Text="Team Color",Default=true,Callback=function(v) A.ESPFlags.TeamColor=v end})
+g:AddToggle("aqxESPBoxes",{Text="Boxes",Default=true,Callback=function(v) A.ESPFlags.Boxes=v end})
+g:AddDropdown("aqxESPBoxType",{Text="Box Type",Values={"Corner","Full"},Default="Corner",
+    Callback=function(v) A.ESPFlags.BoxType=tostring(v) end})
+g:AddDropdown("aqxESPBoxColor",{Text="Box Color",Values=A.VisualColorNames,Default="Orange",
+    Callback=function(v) A.ESPFlags.BoxColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,140,0) end})
+g:AddToggle("aqxESPHealth",{Text="Healthbar",Default=true,Callback=function(v) A.ESPFlags.Healthbar=v end})
+g:AddToggle("aqxESPChams",{Text="Chams",Default=false,Callback=function(v) A.ESPFlags.Chams=v end})
+g:AddToggle("aqxESPName",{Text="Name",Default=true,Callback=function(v) A.ESPFlags.Name=v end})
+g:AddToggle("aqxESPDist2",{Text="Distance",Default=true,Callback=function(v) A.ESPFlags.Distance=v end})
+g:AddToggle("aqxESPWeapon",{Text="Weapon",Default=false,Callback=function(v) A.ESPFlags.Weapon=v end})
+g:AddToggle("aqxESPSnap",{Text="Snaplines",Default=false,Callback=function(v) A.ESPFlags.Snaplines=v end})
+g:AddToggle("aqxESPSkel",{Text="Skeleton",Default=false,Callback=function(v) A.ESPFlags.Skeleton=v end})
+
+local g=tVis:AddGroup("Hitbox")
+g:AddToggle("aqxHitbox",{Text="Enable Hitbox",Default=false,Callback=function(v) A.HitboxVisuals.Enabled=v end})
+g:AddDropdown("aqxHitboxPart",{Text="Part",
+    Values={"Head","HumanoidRootPart","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm",
+        "RightUpperArm","RightLowerArm","LeftUpperLeg","LeftLowerLeg","RightUpperLeg","RightLowerLeg"},
+    Default="Head",Callback=function(v) A.HitboxVisuals.Part=tostring(v) end})
+g:AddSlider("aqxHitboxMult",{Text="Multiplier",Min=1,Max=15,Default=5,
+    Callback=function(v) A.HitboxVisuals.Multiplier=v end})
+g:AddSlider("aqxHitboxTrans",{Text="Transparency",Min=0,Max=1,Default=0.45,
+    Callback=function(v) A.HitboxVisuals.Transparency=v end})
+g:AddDropdown("aqxHitboxType",{Text="Type",Values={"Block","Ball","Cylinder"},Default="Block",
+    Callback=function(v) A.HitboxVisuals.Type=tostring(v) end})
+g:AddToggle("aqxHitboxTeam",{Text="Skip Teammates",Default=false,Callback=function(v) A.HitboxVisuals.TeamCheck=v end})
+
+-- ═══════════════════════════════════════════════════════════════
+-- SAFE
+-- ═══════════════════════════════════════════════════════════════
+local tSafe=A.makeTab("Safe")
+
+local g=tSafe:AddGroup("Safe")
+local safeItems=A.GetSafeItems()
+if #safeItems==0 then safeItems={"(empty - press Refresh)"} end
+local selectedSafeItem=safeItems[1]
+local safeDD=g:AddDropdown("aqxSafeItem",{Text="Select Safe Item",Values=safeItems,Default=selectedSafeItem,
+    Callback=function(v) selectedSafeItem=tostring(v) end})
+g:AddButton("Refresh Safe List",function()
+    local items=A.GetSafeItems()
+    if #items==0 then items={"(empty)"} end
+    if safeDD then safeDD:SetValues(items) end
+    selectedSafeItem=items[1]
+    A.notify("Safe","Refreshed: "..#items.." items")
+end)
+local safeTakeAllActive=false
+g:AddButton("Take All",function()
+    if safeTakeAllActive then A.notify("Safe","Already running.") return end
+    local items=A.GetSafeItems()
+    if #items==0 then A.notify("Safe","Safe is empty.") return end
+    safeTakeAllActive=true
+    task.spawn(function()
+        A.notify("Safe","Taking all "..#items.." items...")
+        local taken=0
+        for _,n in ipairs(items) do
+            if not safeTakeAllActive then break end
+            if A.TakeFromSafe(n) then taken=taken+1 end
+            task.wait(0.5)
+        end
+        safeTakeAllActive=false
+        A.notify("Safe","Took "..taken.."/"..#items)
+    end)
+end)
+g:AddButton("Stop Take All",function()
+    if safeTakeAllActive then safeTakeAllActive=false A.notify("Safe","Stop requested.")
+    else A.notify("Safe","Not running.") end
+end)
+
+local g=tSafe:AddGroup("Safe Dupe")
+local dupeItems=A.GetLockedTools()
+table.insert(dupeItems,1,"None")
+local dupeDD=g:AddDropdown("aqxDupeItem",{Text="Select Item",Values=dupeItems,Default="None",
+    Callback=function(v)
+        local pick=tostring(v)
+        if pick=="None" or pick=="" then A.selectedDupeItem=nil else A.selectedDupeItem=pick end
+    end})
+g:AddButton("Refresh Items",function()
+    local items=A.GetLockedTools()
+    local l={"None"}
+    for _,x in ipairs(items) do table.insert(l,x) end
+    if dupeDD then dupeDD:SetValues(l) end
+    A.selectedDupeItem=nil
+    A.notify("Dupe","Refreshed: "..(#l-1).." tools")
+end)
+local customDupeAmount=1
+g:AddSlider("aqxDupeAmt",{Text="Custom Dupe Amount",Min=1,Max=15,Default=1,
+    Callback=function(v) customDupeAmount=math.clamp(math.floor(v),1,15) end})
+g:AddButton("Run Custom Safe Dupe",function()
+    if not A.autoDupeActive then A.DoDupe(customDupeAmount)
+    else A.notify("Dupe","Already running!") end
+end)
+g:AddButton("Safe Dupe 15 Times",function()
+    if not A.autoDupeActive then A.DoDupe(15)
+    else A.notify("Dupe","Already running!") end
+end)
+g:AddButton("Stop Safe Dupe",function()
+    if A.autoDupeActive then A.autoDupeActive=false A.notify("Dupe","Stop requested.")
+    else A.notify("Dupe","Not running.") end
+end)
+g:AddToggle("aqxAutoDupe",{Text="Auto Safe Dupe (Infinite)",Default=false,Callback=function(s)
+    if s then if not A.autoDupeActive then A.DoDupe(math.huge) end
+    else if A.autoDupeActive then A.autoDupeActive=false A.notify("Dupe","Stopped") end end
+end})
+g:AddButton("Safe TP",A.SafeTP)
+g:AddToggle("aqxAutoDropTools",{Text="Auto Drop Tools",Default=false,Callback=function(s) A.ToggleAutoDrop(s) end})
+
+local g=tSafe:AddGroup("Info")
+local safeStatusLbl=g:AddLabel("Safe Status: Ready")
+local dupeCounterLbl=g:AddLabel("Total Duped: 0")
+local dupeActiveLbl=g:AddLabel("Dupe: IDLE")
+task.spawn(function()
+    while task.wait(5) do
+        local sf=A.GetActiveSafe()
+        pcall(function() safeStatusLbl:SetText("Safe Status: "..(sf and "Found" or "Not Found")) end)
+        pcall(function() dupeCounterLbl:SetText("Total Duped: "..A.dupeCounter) end)
+        pcall(function() dupeActiveLbl:SetText("Dupe: "..(A.autoDupeActive and "RUNNING" or "IDLE")) end)
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- TELEPORT
+-- ═══════════════════════════════════════════════════════════════
+local tTp=A.makeTab("Teleport")
+
+local g=tTp:AddGroup("Quick Teleport")
 local selTP=A.teleportNames[1]
 g:AddDropdown("aqxTpLoc",{Text="Location",Values=A.teleportNames,Default=selTP,
     Callback=function(v) selTP=tostring(v) end})
@@ -211,9 +665,57 @@ g:AddButton("Teleport",function()
 end)
 g:AddButton("Dynamic Cook Pot",A.TeleportToCookPot)
 
+local g=tTp:AddGroup("Shops")
+local shops={"Car Dealer","Gunshop","Dripstore","Exotic","Backpack","Market",
+    "Pawn Shop","Bank","New Bank","Money Wash","Dollar General","Ice Box"}
+for _,name in ipairs(shops) do
+    if A.teleportLocations[name] then
+        g:AddButton(name,function()
+            A.TP(A.teleportLocations[name])
+            A.notify("TP",name,2)
+        end)
+    end
+end
+
+local g=tTp:AddGroup("Services")
+local services={"Hospital","Prison","Studio","RPT","Construction Site",
+    "Bank Vault","Mr Money Man","New Deli","New Laundry","New Seller"}
+for _,name in ipairs(services) do
+    if A.teleportLocations[name] then
+        g:AddButton(name,function()
+            A.TP(A.teleportLocations[name])
+            A.notify("TP",name,2)
+        end)
+    end
+end
+
+local g=tTp:AddGroup("Houses")
+local houses={"Mansion","New Penthouse","Random House"}
+for _,name in ipairs(houses) do
+    if A.teleportLocations[name] then
+        g:AddButton(name,function()
+            A.TP(A.teleportLocations[name])
+            A.notify("TP",name,2)
+        end)
+    end
+end
+
+local g=tTp:AddGroup("Utility")
+g:AddButton("Dynamic Cook Pot",A.TeleportToCookPot)
+g:AddButton("Return to Spawn",function()
+    local spawn=workspace:FindFirstChildOfClass("SpawnLocation")
+    if spawn then
+        A.TP(spawn.CFrame)
+        A.notify("TP","Returned to spawn",2)
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
 -- EXTRA
-local te=A.makeTab("Extra")
-local g=te:AddGroup("Emotes")
+-- ═══════════════════════════════════════════════════════════════
+local tExtra=A.makeTab("Extra")
+
+local g=tExtra:AddGroup("Emotes")
 g:AddDropdown("aqxEmote",{Text="Select Emote",Values=A.MianiEmoteNames,Default="Take The L",
     Callback=function(v) if A.MianiEmotes[v] then A.MianiSelectedEmoteName=v end end})
 g:AddButton("Play Selected Emote",function()
@@ -225,7 +727,8 @@ g:AddToggle("aqxEmoteLoop",{Text="Loop Emote",Default=true,Callback=function(s)
     A.MianiEmoteSettings.Loop=s
     if A.MianiCurrentEmoteTrack then pcall(function() A.MianiCurrentEmoteTrack.Looped=s end) end
 end})
-local g=te:AddGroup("Quick Outfits")
+
+local g=tExtra:AddGroup("Quick Outfits")
 g:AddButton("Spiderman",function()
     A.applyOutfit("Spiderman",{{"Buy","Shirts","Spiderman"},{"Wear","Shirts","Spiderman"},
         {"Buy","Pants","Spiderman"},{"Wear","Pants","Spiderman"},
@@ -235,6 +738,11 @@ g:AddButton("All Black",function()
     A.applyOutfit("All Black",{{"Buy","Shirts","Black"},{"Wear","Shirts","Black"},
         {"Buy","Pants","Black"},{"Wear","Pants","Black"},
         {"Buy","Shiestys","BlackShiesty"},{"Wear","Shiestys","BlackShiesty"}})
+end)
+g:AddButton("Blu Moncler Drip",function()
+    A.applyOutfit("Blu Moncler Drip",{{"Buy","Shirts","Blu Moncler"},{"Wear","Shirts","Blu Moncler"},
+        {"Buy","Pants","Amiri Blue Jeans"},{"Wear","Pants","Amiri Blue Jeans"},
+        {"Buy","Shiestys","Shiesty"},{"Wear","Shiestys","Shiesty"}})
 end)
 g:AddToggle("aqxFlashOutfit",{Text="Flash Outfit",Default=false,Callback=function(v)
     A.FlashOutfits=v
@@ -257,216 +765,5 @@ end})
 g:AddSlider("aqxOutfitSpeed",{Text="Flash Swap Delay",Default=0.2,Min=0.0005,Max=2.5,
     Callback=function(v) A.OutfitSwapDelay=v end})
 
--- GUN MODS
-local tg=A.makeTab("Gun Mods")
-local g=tg:AddGroup("Weapon Modifications")
-local function bt(d,k,f)
-    g:AddToggle(f,{Text=d,Default=false,Callback=function(s)
-        A.WeaponMods[k]=s
-        if k=="InfiniteDamage" then A.WeaponMods.DamageAmplified=s end
-        pcall(A.applyAllWeaponMods)
-    end})
-end
-bt("Infinite Ammo","InfiniteAmmo","aqxInfAmmo")
-bt("Infinite Clips","InfiniteClips","aqxInfClips")
-bt("Infinite Damage","InfiniteDamage","aqxInfDmg")
-bt("Instant Reload","InstantReload","aqxInstReload")
-bt("Instant Equip","InstantEquip","aqxInstEquip")
-bt("80k Bullets","Bullets80k","aqx80k")
-bt("Fully Automatic","Automatic","aqxAuto")
-bt("Disable Jamming","DisableJamming","aqxNoJam")
-bt("Modify Recoil Value","ModifyRecoilValue","aqxRecoil")
-bt("Modify Spread Value","ModifySpreadValue","aqxSpread")
-bt("Modify Fire Rate","ModifyFireRate","aqxFireRate")
-g:AddButton("Force 80k Bullets",A.force80k)
-
-local g=tg:AddGroup("Weapon Settings")
-g:AddSlider("aqxReloadSpd",{Text="Reload Speed",Min=0.01,Max=1,Default=0.2,
-    Callback=function(v) A.WeaponMods.ReloadSpeed=v pcall(A.applyAllWeaponMods) end})
-g:AddSlider("aqxEquipSpd",{Text="Equip Speed",Min=0.01,Max=1,Default=0.2,
-    Callback=function(v) A.WeaponMods.EquipSpeed=v pcall(A.applyAllWeaponMods) end})
-
-local g=tg:AddGroup("Gun Color")
-g:AddToggle("aqxGunColor",{Text="Enable Gun Color",Default=false,Callback=function(s)
-    A.GunChams=s if not s then A.restoreGunColor() end
-end})
-g:AddToggle("aqxRainbowGun",{Text="Rainbow Gun Color",Default=false,Callback=function(s) A.RainbowGun=s end})
-g:AddDropdown("aqxGunColorPick",{Text="Gun Color",
-    Values={"Green","Purple","Red","Blue","Pink","Cyan","Yellow","White"},Default="Green",
-    Callback=function(v)
-        local cols={Green=Color3.fromRGB(0,200,0),Purple=Color3.fromRGB(143,0,255),
-            Red=Color3.fromRGB(255,0,0),Blue=Color3.fromRGB(0,120,255),
-            Pink=Color3.fromRGB(255,80,180),Cyan=Color3.fromRGB(0,255,255),
-            Yellow=Color3.fromRGB(255,255,0),White=Color3.fromRGB(255,255,255)}
-        A.GunChamsColor=cols[tostring(v)] or Color3.fromRGB(0,200,0)
-    end})
-
--- VISUALS
-local tv=A.makeTab("Visuals")
-local g=tv:AddGroup("World")
-g:AddToggle("aqxFullbright",{Text="Fullbright",Default=false,Callback=function(v) A.WorldVisuals.Fullbright=v end})
-g:AddToggle("aqxSat",{Text="Enable Saturation",Default=false,Callback=function(v) A.WorldVisuals.SaturationEnabled=v end})
-g:AddSlider("aqxSatVal",{Text="Saturation Value",Min=0,Max=200,Default=100,
-    Callback=function(v) A.WorldVisuals.SaturationValue=v/100 end})
-g:AddToggle("aqxFov",{Text="Enable FOV",Default=false,Callback=function(v) A.WorldVisuals.FieldOfViewEnabled=v end})
-g:AddSlider("aqxFovVal",{Text="FOV Value",Min=30,Max=120,Default=70,
-    Callback=function(v) A.WorldVisuals.FieldOfViewValue=v end})
-g:AddToggle("aqxFog",{Text="Enable Fog Color",Default=false,Callback=function(v) A.WorldVisuals.FogColorEnabled=v end})
-g:AddDropdown("aqxFogColor",{Text="Fog Color",Values=A.VisualColorNames,Default="White",
-    Callback=function(v) A.WorldVisuals.FogColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,255,255) end})
-g:AddToggle("aqxAmbient",{Text="Enable Ambient Tint",Default=false,Callback=function(v) A.WorldVisuals.AmbientEnabled=v end})
-g:AddDropdown("aqxAmbientColor",{Text="Ambient Color",Values=A.VisualColorNames,Default="White",
-    Callback=function(v) A.WorldVisuals.AmbientColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,255,255) end})
-
-local g=tv:AddGroup("Player ESP")
-g:AddToggle("aqxESP",{Text="ESP Enabled",Default=false,Callback=function(v) A.ESPFlags.Enabled=v end})
-g:AddSlider("aqxESPDist",{Text="Render Distance",Min=50,Max=5000,Default=1400,
-    Callback=function(v) A.ESPFlags.RenderDistance=v end})
-g:AddToggle("aqxESPTeam",{Text="Team Color",Default=true,Callback=function(v) A.ESPFlags.TeamColor=v end})
-g:AddToggle("aqxESPBoxes",{Text="Boxes",Default=true,Callback=function(v) A.ESPFlags.Boxes=v end})
-g:AddDropdown("aqxESPBoxType",{Text="Box Type",Values={"Corner","Full"},Default="Corner",
-    Callback=function(v) A.ESPFlags.BoxType=tostring(v) end})
-g:AddDropdown("aqxESPBoxColor",{Text="Box Color",Values=A.VisualColorNames,Default="Orange",
-    Callback=function(v) A.ESPFlags.BoxColor=A.VisualColorPresets[tostring(v)] or Color3.fromRGB(255,140,0) end})
-g:AddToggle("aqxESPHealth",{Text="Healthbar",Default=true,Callback=function(v) A.ESPFlags.Healthbar=v end})
-g:AddToggle("aqxESPChams",{Text="Chams",Default=false,Callback=function(v) A.ESPFlags.Chams=v end})
-g:AddToggle("aqxESPName",{Text="Name",Default=true,Callback=function(v) A.ESPFlags.Name=v end})
-g:AddToggle("aqxESPDist2",{Text="Distance",Default=true,Callback=function(v) A.ESPFlags.Distance=v end})
-g:AddToggle("aqxESPWeapon",{Text="Weapon",Default=false,Callback=function(v) A.ESPFlags.Weapon=v end})
-g:AddToggle("aqxESPSnap",{Text="Snaplines",Default=false,Callback=function(v) A.ESPFlags.Snaplines=v end})
-g:AddToggle("aqxESPSkel",{Text="Skeleton",Default=false,Callback=function(v) A.ESPFlags.Skeleton=v end})
-
-local g=tv:AddGroup("Hitbox")
-g:AddToggle("aqxHitbox",{Text="Enable Hitbox",Default=false,Callback=function(v) A.HitboxVisuals.Enabled=v end})
-g:AddDropdown("aqxHitboxPart",{Text="Part",
-    Values={"Head","HumanoidRootPart","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm",
-        "RightUpperArm","RightLowerArm","LeftUpperLeg","LeftLowerLeg","RightUpperLeg","RightLowerLeg"},
-    Default="Head",Callback=function(v) A.HitboxVisuals.Part=tostring(v) end})
-g:AddSlider("aqxHitboxMult",{Text="Multiplier",Min=1,Max=15,Default=5,
-    Callback=function(v) A.HitboxVisuals.Multiplier=v end})
-g:AddSlider("aqxHitboxTrans",{Text="Transparency",Min=0,Max=1,Default=0.45,
-    Callback=function(v) A.HitboxVisuals.Transparency=v end})
-g:AddDropdown("aqxHitboxType",{Text="Type",Values={"Block","Ball","Cylinder"},Default="Block",
-    Callback=function(v) A.HitboxVisuals.Type=tostring(v) end})
-
--- SAFE
-local ts=A.makeTab("Safe")
-local g=ts:AddGroup("Safe")
-local si=A.GetSafeItems()
-if #si==0 then si={"(empty - press Refresh)"} end
-local ssi=si[1]
-local sdd=g:AddDropdown("aqxSafeItem",{Text="Select Safe Item",Values=si,Default=ssi,
-    Callback=function(v) ssi=tostring(v) end})
-g:AddButton("Refresh Safe List",function()
-    local it=A.GetSafeItems()
-    if #it==0 then it={"(empty)"} end
-    if sdd then sdd:SetValues(it) end
-    ssi=it[1] A.notify("Safe","Refreshed: "..#it)
-end)
-local ta=false
-g:AddButton("Take All",function()
-    if ta then A.notify("Safe","Already running.") return end
-    local it=A.GetSafeItems()
-    if #it==0 then A.notify("Safe","Safe is empty.") return end
-    ta=true
-    task.spawn(function()
-        A.notify("Safe","Taking all "..#it.." items...")
-        local tk=0
-        for _,n in ipairs(it) do
-            if not ta then break end
-            if A.TakeFromSafe(n) then tk=tk+1 end
-            task.wait(0.5)
-        end
-        ta=false A.notify("Safe","Took "..tk.."/"..#it)
-    end)
-end)
-g:AddButton("Stop Take All",function()
-    if ta then ta=false A.notify("Safe","Stop requested.") else A.notify("Safe","Not running.") end
-end)
-
-local g=ts:AddGroup("Safe Dupe")
-local di=A.GetLockedTools()
-table.insert(di,1,"None")
-local ddd=g:AddDropdown("aqxDupeItem",{Text="Select Item",Values=di,Default="None",
-    Callback=function(v)
-        local p=tostring(v)
-        if p=="None" or p=="" then A.selectedDupeItem=nil else A.selectedDupeItem=p end
-    end})
-g:AddButton("Refresh Items",function()
-    local it=A.GetLockedTools()
-    local l={"None"}
-    for _,x in ipairs(it) do table.insert(l,x) end
-    if ddd then ddd:SetValues(l) end
-    A.selectedDupeItem=nil A.notify("Dupe","Refreshed: "..(#l-1).." tools")
-end)
-local cda=1
-g:AddSlider("aqxDupeAmt",{Text="Custom Dupe Amount",Min=1,Max=15,Default=1,
-    Callback=function(v) cda=math.clamp(math.floor(v),1,15) end})
-g:AddButton("Run Custom Safe Dupe",function()
-    if not A.autoDupeActive then A.DoDupe(cda) else A.notify("Dupe","Already running!") end
-end)
-g:AddButton("Safe Dupe 15 Times",function()
-    if not A.autoDupeActive then A.DoDupe(15) else A.notify("Dupe","Already running!") end
-end)
-g:AddButton("Stop Safe Dupe",function()
-    if A.autoDupeActive then A.autoDupeActive=false A.notify("Dupe","Stop requested.")
-    else A.notify("Dupe","Not running.") end
-end)
-g:AddToggle("aqxAutoDupe",{Text="Auto Safe Dupe (Infinite)",Default=false,Callback=function(s)
-    if s then if not A.autoDupeActive then A.DoDupe(math.huge) end
-    else if A.autoDupeActive then A.autoDupeActive=false A.notify("Dupe","Stopped") end end
-end})
-g:AddButton("Safe TP",A.SafeTP)
-g:AddToggle("aqxAutoDropTools",{Text="Auto Drop Tools",Default=false,Callback=function(s) A.ToggleAutoDrop(s) end})
-
-local g=ts:AddGroup("Info")
-local ssl=g:AddLabel("Safe Status: Ready")
-local dcl=g:AddLabel("Total Duped: 0")
-local dal=g:AddLabel("Dupe: IDLE")
-task.spawn(function()
-    while task.wait(5) do
-        local sf=A.GetActiveSafe()
-        pcall(function() ssl:SetText("Safe Status: "..(sf and "Found" or "Not Found")) end)
-        pcall(function() dcl:SetText("Total Duped: "..A.dupeCounter) end)
-        pcall(function() dal:SetText("Dupe: "..(A.autoDupeActive and "RUNNING" or "IDLE")) end)
-    end
-end)
-
--- SETTINGS
-local tst=A.makeTab("Settings")
-local g=tst:AddGroup("Head Tag")
-local HTS=A.MiamiHeadTagSettings
-g:AddToggle("aqxHeadTag",{Text="Enable Head Text",Default=true,Callback=function(v)
-    HTS.Enabled=v
-    if not v and LP.Character and A.destroyHeadTag then A.destroyHeadTag(LP.Character)
-    elseif v and LP.Character and A.attachHeadTag then task.defer(A.attachHeadTag,LP.Character) end
-end})
-g:AddInput("aqxHeadText",{Text="Text",Default="aqx",Callback=function(v)
-    HTS.Text=tostring(v)~="" and tostring(v) or "aqx"
-end})
-g:AddDropdown("aqxHeadStyle",{Text="Animation",
-    Values={"Taco Green","Taco Wave","Rainbow Wave","Fire","Ice","Toxic","Royal"},
-    Default="Taco Green",Callback=function(v) HTS.Style=tostring(v) end})
-g:AddToggle("aqxHeadPulse",{Text="Text Pulse",Default=true,Callback=function(v) HTS.Pulse=v end})
-g:AddSlider("aqxHeadSize",{Text="Text Size",Min=18,Max=52,Default=32,Callback=function(v) HTS.Size=v end})
-g:AddSlider("aqxHeadHeight",{Text="Height",Min=2,Max=7,Default=3.4,Callback=function(v) HTS.Height=v end})
-
-local g=tst:AddGroup("Menu")
-g:AddButton("Unload UI",function()
-    for _,fn in ipairs(A.UnloadCallbacks) do pcall(fn) end
-    if A.Gui then A.Gui:Destroy() end
-end)
-g:AddButton("Rejoin Server",function()
-    pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId,game.JobId) end)
-end)
-g:AddButton("Server Hop",function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/BENZZY420/SERVERHOP/refs/heads/main/SERVERHOP"))()
-end)
-g:AddButton("Copy Discord",function()
-    if setclipboard then setclipboard("https://discord.gg/tacoscripts") end
-    A.notify("Discord","Copied discord.gg/tacoscripts")
-end)
-
-task.delay(2,function() A.MiamiSuppressNotifications=false end)
 A.notify("aqx","Loaded. Tap the purple a to minimize.",4)
 print("[aqx] tabs loaded")
