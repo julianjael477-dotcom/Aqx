@@ -1,4 +1,4 @@
---[[ aqx modules part 2 ]]
+--[[ aqx modules part 2 — misc, autofarm, safe/dupe, market dupe, emotes, outfits ]]
 
 local A=getgenv().aqx
 assert(A and A.Modules1Loaded,"aqx modules1 not loaded")
@@ -609,6 +609,240 @@ A.ToggleAutoDrop=function(state)
         end)
     end
 end
+
+--------------------------------------------------------------------
+-- MARKET DUPE (ported from Jointhub source)
+--------------------------------------------------------------------
+local function MarketHasItem(toolName)
+    local market=RS:FindFirstChild("MarketItems")
+    if not market then return false end
+    for _,item in ipairs(market:GetChildren()) do
+        if item.Name==toolName and item:FindFirstChild("owner")
+        and item.owner.Value==LP.Name then
+            return true,item
+        end
+    end
+    return false
+end
+local function BackpackHasItem(toolName)
+    local bp=LP:FindFirstChild("Backpack")
+    local ch=LP.Character
+    for _,src in ipairs({bp,ch}) do
+        if src then
+            for _,tool in ipairs(src:GetChildren()) do
+                if tool:IsA("Tool") and tool.Name==toolName then return true end
+            end
+        end
+    end
+    return false
+end
+
+A.MarketHasItem=MarketHasItem
+A.BackpackHasItem=BackpackHasItem
+
+A.MarketDupeOnce=function(toolName)
+    if not toolName then return false,"No tool" end
+    local listRemote=RS:FindFirstChild("ListWeaponRemote")
+    local buyRemote=RS:FindFirstChild("BuyItemRemote")
+    local grabRemote=RS:FindFirstChild("BackpackRemote")
+    if not listRemote then return false,"No ListWeaponRemote" end
+
+    pcall(function() listRemote:FireServer(toolName,999999) end)
+    task.wait(0.03)
+
+    local market=RS:FindFirstChild("MarketItems")
+    if market then
+        for _,item in ipairs(market:GetChildren()) do
+            if item.Name==toolName and item:FindFirstChild("owner")
+            and item.owner.Value==LP.Name then
+                local special=item:GetAttribute("SpecialId")
+                if buyRemote then
+                    pcall(function() buyRemote:FireServer(toolName,"Remove",special) end)
+                end
+                break
+            end
+        end
+    end
+
+    if grabRemote then
+        pcall(function() grabRemote:InvokeServer("Grab",toolName) end)
+    end
+
+    task.wait(0.4)
+
+    local onMarket=MarketHasItem(toolName)
+    local inBag=BackpackHasItem(toolName)
+    if onMarket and inBag then return true
+    elseif inBag then return true,"returned"
+    else return false,"no result" end
+end
+
+A.MarketDupeLoop=function(toolName,count)
+    count=count or 15
+    task.spawn(function()
+        local ok=0
+        for i=1,count do
+            local good=pcall(A.MarketDupeOnce,toolName)
+            if good then ok=ok+1 end
+            task.wait(0.15)
+        end
+        notify("Market Dupe","Finished "..ok.."/"..count)
+    end)
+end
+
+A.MarketDupeAll=function()
+    task.spawn(function()
+        local tools={}
+        local bp=LP:FindFirstChild("Backpack")
+        local ch=LP.Character
+        for _,src in ipairs({bp,ch}) do
+            if src then
+                for _,t in ipairs(src:GetChildren()) do
+                    if t:IsA("Tool") and not BL[t.Name] then
+                        if not table.find(tools,t.Name) then
+                            table.insert(tools,t.Name)
+                        end
+                    end
+                end
+            end
+        end
+        if #tools==0 then notify("Market Dupe","No tools.") return end
+        notify("Market Dupe","Listing "..#tools.." tools...")
+        local listRemote=RS:FindFirstChild("ListWeaponRemote")
+        if not listRemote then notify("Market Dupe","No ListWeaponRemote") return end
+        for _,n in ipairs(tools) do
+            pcall(function() listRemote:FireServer(n,999999) end)
+            task.wait(0.05)
+        end
+        task.wait(0.3)
+        notify("Market Dupe","Grabbing back...")
+        local grabRemote=RS:FindFirstChild("BackpackRemote")
+        if grabRemote then
+            for _,n in ipairs(tools) do
+                pcall(function() grabRemote:InvokeServer("Grab",n) end)
+                task.wait(0.05)
+            end
+        end
+        notify("Market Dupe","Done.")
+    end)
+end
+
+-- DEATH MARKET (put guns on market when dead)
+local DeathMarket={Running=false,ListedCharacter=nil,Snapshot={},Price=99999}
+local function IsDeathMarketGun(item)
+    return item~=nil and item:IsA("Tool") and not BL[item.Name]
+end
+local function SnapshotDMGuns(ch)
+    local s={}
+    local bp=LP:FindFirstChild("Backpack")
+    for _,c in ipairs({ch,bp}) do
+        if c then
+            for _,it in ipairs(c:GetChildren()) do
+                if IsDeathMarketGun(it) then table.insert(s,it.Name) end
+            end
+        end
+    end
+    DeathMarket.Snapshot=s
+    return s
+end
+local function CountDMListings(gunName)
+    local market=RS:FindFirstChild("MarketItems")
+    if not market then return 0 end
+    local count=0
+    for _,item in ipairs(market:GetChildren()) do
+        local owner=item:FindFirstChild("owner")
+        if item.Name==gunName and owner and owner.Value==LP.Name then
+            count=count+1
+        end
+    end
+    return count
+end
+local function FindDMTool(gunName)
+    local ch=LP.Character local bp=LP:FindFirstChild("Backpack")
+    local t=ch and ch:FindFirstChild(gunName)
+    if t and t:IsA("Tool") then return t end
+    t=bp and bp:FindFirstChild(gunName)
+    if t and t:IsA("Tool") then return t end
+end
+local function PutDMOnMarket(ch)
+    if not A.KeepToolsOnDeath or DeathMarket.Running then return false end
+    if not ch or DeathMarket.ListedCharacter==ch then return false end
+    local listRemote=RS:FindFirstChild("ListWeaponRemote")
+    local bpRemote=RS:FindFirstChild("BackpackRemote")
+    if not listRemote then return false end
+    DeathMarket.Running=true
+    DeathMarket.ListedCharacter=ch
+    local gunNames=SnapshotDMGuns(ch)
+    if #gunNames==0 then gunNames=DeathMarket.Snapshot or {} end
+    local wanted={} local baseline={}
+    for _,n in ipairs(gunNames) do wanted[n]=(wanted[n] or 0)+1 end
+    for n in pairs(wanted) do baseline[n]=CountDMListings(n) end
+    local hum=ch:FindFirstChildOfClass("Humanoid")
+    if hum then pcall(function() hum:UnequipTools() end) end
+    if gunNames[1] then
+        pcall(function() listRemote:FireServer(gunNames[1],DeathMarket.Price) end)
+    end
+    task.spawn(function()
+        task.wait(3)
+        for name,amount in pairs(wanted) do
+            local target=(baseline[name] or 0)+amount
+            local attempts=0
+            while A.KeepToolsOnDeath and CountDMListings(name)<target and attempts<(amount*4+4) do
+                attempts=attempts+1
+                local tool=FindDMTool(name)
+                if not tool and bpRemote then
+                    pcall(function() bpRemote:InvokeServer("Grab",name) end)
+                    task.wait(0.35)
+                    tool=FindDMTool(name)
+                end
+                if tool then
+                    local cur=LP.Character
+                    local curHum=cur and cur:FindFirstChildOfClass("Humanoid")
+                    if curHum and tool.Parent~=cur then
+                        pcall(function() curHum:EquipTool(tool) end)
+                        task.wait(0.2)
+                    end
+                end
+                local before=CountDMListings(name)
+                pcall(function() listRemote:FireServer(name,DeathMarket.Price) end)
+                local dl=os.clock()+2.5
+                repeat task.wait(0.1)
+                until CountDMListings(name)>before or os.clock()>=dl
+                task.wait(0.25)
+            end
+        end
+        local total=0
+        for name,amount in pairs(wanted) do
+            local gained=CountDMListings(name)-(baseline[name] or 0)
+            total=total+math.clamp(gained,0,amount)
+        end
+        DeathMarket.Running=false
+        notify("Death Market","Listed "..tostring(total).."/"..tostring(#gunNames))
+    end)
+    notify("Death Market","Queued "..tostring(#gunNames).." guns on death.")
+    return true
+end
+local function BindDMChar(ch)
+    DeathMarket.Running=false
+    DeathMarket.ListedCharacter=nil
+    DeathMarket.Snapshot={}
+    local h=ch:WaitForChild("Humanoid",10)
+    local bp=LP:WaitForChild("Backpack",10)
+    if not h or not bp then return end
+    local function refresh()
+        if ch==LP.Character then SnapshotDMGuns(ch) end
+    end
+    ch.ChildAdded:Connect(refresh)
+    ch.ChildRemoved:Connect(refresh)
+    bp.ChildAdded:Connect(refresh)
+    bp.ChildRemoved:Connect(refresh)
+    refresh()
+    h.Died:Connect(function()
+        if A.KeepToolsOnDeath then PutDMOnMarket(ch) end
+    end)
+end
+if LP.Character then task.defer(BindDMChar,LP.Character) end
+LP.CharacterAdded:Connect(BindDMChar)
 
 -- EMOTES
 A.MianiEmotes={["CSnoop"]=86123328011397,["Air Cycle"]=94324173536622,
