@@ -1,4 +1,4 @@
---[[ aqx core — left sidebar layout, mobile-first ]]
+--[[ aqx core — left sidebar layout, top-banner welcome splash ]]
 
 local function svc(n) local ok,s=pcall(function() return game:GetService(n) end) return ok and s or nil end
 local Players=svc("Players") local RS=svc("ReplicatedStorage") local RunSvc=svc("RunService")
@@ -68,7 +68,7 @@ A.notify = function(title,text,dur)
     end)
 end
 
--- teleport — Jointhub-style anti-cheat bypass
+-- teleport
 A.Config = A.Config or {}
 A.Config.Teleport = function(self,cf)
     local char=LP.Character
@@ -97,14 +97,13 @@ A.Config.Teleport = function(self,cf)
 end
 A.TP = function(cf) A.Config:Teleport(cf) end
 
--- ROOT UI (left sidebar layout)
+-- ROOT UI
 local parent = (gethui and gethui()) or CoreGui or PG
 for _,n in ipairs({"aqxUI","aqxToggle"}) do local o=parent:FindFirstChild(n) if o then o:Destroy() end end
 local gui = A.new("ScreenGui",{Name="aqxUI",ResetOnSpawn=false,IgnoreGuiInset=true,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=9999},parent)
 A.Gui = gui
 
--- size: wider now to fit sidebar + content
 local BASE_W = 620
 local BASE_H = 400
 local HDR_H  = 48
@@ -116,7 +115,6 @@ local main = A.new("Frame",{Name="Main",AnchorPoint=Vector2.new(0.5,0.5),
 A.Main = main
 A.corner(main,12) A.stroke(main,Theme.Outline,1,0.1)
 
--- header (top)
 local header = A.new("Frame",{Size=UDim2.new(1,0,0,HDR_H),BackgroundColor3=Theme.Back,
     BorderSizePixel=0},main)
 A.Header = header
@@ -126,7 +124,7 @@ A.new("TextLabel",{BackgroundTransparency=1,Position=UDim2.fromOffset(16,8),
     TextColor3=Theme.Text,TextXAlignment=Enum.TextXAlignment.Left},header)
 
 local crumb = A.new("TextLabel",{BackgroundTransparency=1,Position=UDim2.fromOffset(16,28),
-    Size=UDim2.fromOffset(220,13),Font=Enum.Font.Gotham,Text="Player",TextSize=10,
+    Size=UDim2.fromOffset(220,13),Font=Enum.Font.Gotham,Text="Home",TextSize=10,
     TextColor3=Theme.Accent,TextXAlignment=Enum.TextXAlignment.Left},header)
 A.Crumb = crumb
 
@@ -144,7 +142,6 @@ A.new("TextLabel",{BackgroundTransparency=1,Position=UDim2.fromOffset(0,18),
     Size=UDim2.fromOffset(84,12),Font=Enum.Font.Gotham,Text="aqx",TextSize=9,
     TextColor3=Theme.Muted,TextXAlignment=Enum.TextXAlignment.Right},chip)
 
--- sidebar (left, vertical tab strip)
 local sidebar = A.new("ScrollingFrame",{
     Position=UDim2.fromOffset(0,HDR_H),
     Size=UDim2.new(0,SIDE_W,1,-HDR_H),
@@ -164,7 +161,6 @@ A.new("UIPadding",{PaddingTop=UDim.new(0,8),PaddingBottom=UDim.new(0,8),
     PaddingLeft=UDim.new(0,6),PaddingRight=UDim.new(0,6)},sidebar)
 A.Sidebar = sidebar
 
--- body (right of sidebar)
 local body = A.new("Frame",{
     Position=UDim2.fromOffset(SIDE_W,HDR_H),
     Size=UDim2.new(1,-SIDE_W,1,-HDR_H),
@@ -349,7 +345,7 @@ A.addDivider = function(p,o)
         BorderSizePixel=0,LayoutOrder=o or 0},p)
 end
 
--- tabs (now vertical buttons in sidebar)
+-- tabs
 A.Tabs = {}
 A.TabButtons = {}
 A.ActiveTab = nil
@@ -389,7 +385,6 @@ A.makeTab = function(name)
     end
     function tab:AddLabel(t) return A.addLabel(scroll,t,0) end
     A.Tabs[name]=tab
-    -- VERTICAL tab button, fills sidebar width
     local btn=A.new("TextButton",{Size=UDim2.new(1,0,0,30),
         BackgroundColor3=Theme.PanelSoft,BackgroundTransparency=0.5,BorderSizePixel=0,
         Text=name,Font=Enum.Font.GothamMedium,TextSize=12,TextColor3=Theme.Muted,
@@ -416,7 +411,7 @@ A.makeTab = function(name)
     return tab
 end
 
--- ROUND PURPLE BUTTON — full hide
+-- purple round button
 local sideBtn=A.new("TextButton",{Name="aqxToggle",AnchorPoint=Vector2.new(1,0.5),
     Size=UDim2.fromOffset(44,44),BackgroundColor3=Theme.Accent,Text="a",
     Font=Enum.Font.GothamBlack,TextSize=22,TextColor3=Color3.fromRGB(255,255,255),
@@ -491,5 +486,80 @@ A.new("UIListLayout",{Padding=UDim.new(0,5),
     HorizontalAlignment=Enum.HorizontalAlignment.Right,
     SortOrder=Enum.SortOrder.LayoutOrder},toastHolder)
 
+--------------------------------------------------------------------
+-- WELCOME BANNER (top-center slide-in, matches valria style)
+--------------------------------------------------------------------
+A.showWelcome = function()
+    local splash = A.new("ScreenGui",{
+        Name="aqxWelcome",ResetOnSpawn=false,IgnoreGuiInset=true,
+        DisplayOrder=9998,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
+    },parent)
+
+    local banner = A.new("Frame",{
+        AnchorPoint=Vector2.new(0.5,0),
+        Position=UDim2.new(0.5,0,0,-110),
+        Size=UDim2.fromOffset(420,90),
+        BackgroundColor3=Theme.Back,
+        BackgroundTransparency=0.05,
+        BorderSizePixel=0,
+        ClipsDescendants=false,
+    },splash)
+    A.corner(banner,14)
+    A.stroke(banner,Theme.Accent,2,0.15)
+
+    local avFrame = A.new("Frame",{
+        Position=UDim2.fromOffset(16,15),
+        Size=UDim2.fromOffset(60,60),
+        BackgroundColor3=Theme.PanelSoft,
+        BorderSizePixel=0,
+    },banner)
+    A.corner(avFrame,999)
+    A.stroke(avFrame,Theme.Accent,2,0.05)
+
+    local avatar = A.new("ImageLabel",{
+        Size=UDim2.fromScale(1,1),
+        BackgroundTransparency=1,
+        Image="rbxthumb://type=AvatarHeadShot&id="..LP.UserId.."&w=150&h=150",
+        ScaleType=Enum.ScaleType.Crop,
+    },avFrame)
+    A.corner(avatar,999)
+
+    A.new("TextLabel",{
+        BackgroundTransparency=1,
+        Position=UDim2.fromOffset(88,18),
+        Size=UDim2.new(1,-100,0,24),
+        Font=Enum.Font.GothamBold,
+        Text="Welcome back, "..LP.DisplayName,
+        TextSize=16,
+        TextColor3=Theme.Text,
+        TextXAlignment=Enum.TextXAlignment.Left,
+        TextTruncate=Enum.TextTruncate.AtEnd,
+    },banner)
+
+    A.new("TextLabel",{
+        BackgroundTransparency=1,
+        Position=UDim2.fromOffset(88,44),
+        Size=UDim2.new(1,-100,0,20),
+        Font=Enum.Font.Gotham,
+        Text="aqx loaded — tap the purple a",
+        TextSize=12,
+        TextColor3=Theme.Muted,
+        TextXAlignment=Enum.TextXAlignment.Left,
+        TextTruncate=Enum.TextTruncate.AtEnd,
+    },banner)
+
+    A.tween(banner,0.45,{Position=UDim2.new(0.5,0,0,20)},
+        Enum.EasingStyle.Back,Enum.EasingDirection.Out)
+
+    task.delay(3.4,function()
+        A.tween(banner,0.35,{Position=UDim2.new(0.5,0,0,-110)},
+            Enum.EasingStyle.Quad,Enum.EasingDirection.In)
+        task.wait(0.4)
+        if splash and splash.Parent then splash:Destroy() end
+    end)
+end
+
+task.defer(A.showWelcome)
+
 A.CoreLoaded = true
-print("[aqx] core loaded — sidebar layout")
+print("[aqx] core loaded — banner splash")
