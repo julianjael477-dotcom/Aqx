@@ -15,7 +15,7 @@ A.Players=Players A.RS=RS A.RunSvc=RunSvc A.UIS=UIS A.StarterGui=StarterGui
 A.Lighting=Lighting A.Tween=Tween A.Debris=Debris A.CoreGui=CoreGui
 A.PromptSvc=PromptSvc A.LP=LP A.PG=PG A.BP=BP
 A.Flags={} A.Toggles={} A.Options={} A.UnloadCallbacks={}
-A.SwimMethod=false A.MiamiSuppressNotifications=true A.MoneyDropEnabled=false
+A.SwimMethod=false A.SwimMethod=false A.MiamiSuppressNotifications=false A.MoneyDropEnabled=false
 
 A.Theme = {
     Back=Color3.fromRGB(14,14,14), Panel=Color3.fromRGB(20,20,20),
