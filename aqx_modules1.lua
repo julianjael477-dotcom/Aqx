@@ -342,7 +342,7 @@ A.CarFlingSelectedPlayer=function()
 end
 
 --------------------------------------------------------------------
--- MONEY
+-- MONEY HELPERS
 --------------------------------------------------------------------
 local function goodCleaner()
     if not workspace:FindFirstChild("1# Map") then return nil end
@@ -404,37 +404,47 @@ A.SetupInfiniteMoney=function()
     end
 end
 
--- ═══════════════════════════════════════════════════════════════
--- MONEY GEN — verbatim valria juice flow
--- ═══════════════════════════════════════════════════════════════
-A.GenerateMaxIllegalMoney=function()
-    local P=LP
+--------------------------------------------------------------------
+-- ILLEGAL MONEY GEN — B3 flow
+--------------------------------------------------------------------
+-- shared proximity-prompt firer with InputHoldBegin fallback
+A._firePrompt=function(p)
+    if not (p and p:IsA("ProximityPrompt")) then return false end
+    if fireproximityprompt then
+        if pcall(fireproximityprompt,p) then return true end
+    end
+    pcall(function()
+        local oh,od,ol=p.HoldDuration,p.MaxActivationDistance,p.RequiresLineOfSight
+        p.HoldDuration=0
+        p.MaxActivationDistance=math.max(od,1000)
+        p.RequiresLineOfSight=false
+        p:InputHoldBegin() task.wait() p:InputHoldEnd()
+        p.MaxActivationDistance=od
+        p.HoldDuration=oh
+        p.RequiresLineOfSight=ol
+    end)
+    return true
+end
 
-    local function hasIt(n)
-        local c=P.Character
-        if c then
-            for _,t in ipairs(c:GetChildren()) do
-                if t:IsA("Tool") and t.Name==n then return true end
-            end
-        end
-        local bp=P:FindFirstChild("Backpack")
-        if bp then
-            for _,t in ipairs(bp:GetChildren()) do
-                if t:IsA("Tool") and t.Name==n then return true end
-            end
-        end
+A.GenerateMaxIllegalMoney=function()
+    local firePrompt=A._firePrompt
+
+    local function hasItem(name)
+        local c=LP.Character
+        if c then for _,t in ipairs(c:GetChildren()) do if t:IsA("Tool") and t.Name==name then return true end end end
+        local bp=LP:FindFirstChild("Backpack")
+        if bp then for _,t in ipairs(bp:GetChildren()) do if t:IsA("Tool") and t.Name==name then return true end end end
         return false
     end
-
-    local function eqName(n)
-        local c=P.Character if not c then return false end
+    local function equipByName(name)
+        local c=LP.Character if not c then return false end
         local h=c:FindFirstChildWhichIsA("Humanoid") if not h then return false end
         local held=c:FindFirstChildWhichIsA("Tool")
-        if held and held.Name==n then return true end
-        local bp=P:FindFirstChild("Backpack")
+        if held and held.Name==name then return true end
+        local bp=LP:FindFirstChild("Backpack")
         if bp then
             for _,t in ipairs(bp:GetChildren()) do
-                if t:IsA("Tool") and t.Name==n then
+                if t:IsA("Tool") and t.Name==name then
                     pcall(function() h:EquipTool(t) end)
                     task.wait(0.3)
                     return true
@@ -443,14 +453,13 @@ A.GenerateMaxIllegalMoney=function()
         end
         return false
     end
-
     local function findCup()
-        local c=P.Character
+        local c=LP.Character
         if c then
             local h=c:FindFirstChildWhichIsA("Tool")
             if h and tostring(h.Name):lower():find("cupz") then return h end
         end
-        local bp=P:FindFirstChild("Backpack")
+        local bp=LP:FindFirstChild("Backpack")
         if bp then
             for _,t in ipairs(bp:GetChildren()) do
                 if t:IsA("Tool") and tostring(t.Name):lower():find("cupz") then return t end
@@ -458,8 +467,17 @@ A.GenerateMaxIllegalMoney=function()
         end
         return nil
     end
-
-    local function isFull(tool)
+    local function equipCup()
+        local c=LP.Character if not c then return false end
+        local h=c:FindFirstChildWhichIsA("Humanoid") if not h then return false end
+        local held=c:FindFirstChildWhichIsA("Tool")
+        if held and tostring(held.Name):lower():find("cupz") then return true end
+        local cup=findCup() if not cup then return false end
+        pcall(function() h:EquipTool(cup) end)
+        task.wait(0.3)
+        return true
+    end
+    local function isCupFull(tool)
         if not tool then return false end
         local cp=tool:FindFirstChild("IceFruit Cup") or tool:FindFirstChildWhichIsA("BasePart",true)
         if not cp then return false end
@@ -470,22 +488,16 @@ A.GenerateMaxIllegalMoney=function()
         end
         return false
     end
-
-    local function findFull()
-        local c=P.Character
+    local function findFullCup()
+        local c=LP.Character
         if c then
             local h=c:FindFirstChildWhichIsA("Tool")
-            if h and isFull(h) then return h end
+            if h and isCupFull(h) then return h end
         end
-        local bp=P:FindFirstChild("Backpack")
-        if bp then
-            for _,t in ipairs(bp:GetChildren()) do
-                if t:IsA("Tool") and isFull(t) then return t end
-            end
-        end
+        local bp=LP:FindFirstChild("Backpack")
+        if bp then for _,t in ipairs(bp:GetChildren()) do if t:IsA("Tool") and isCupFull(t) then return t end end end
         return nil
     end
-
     local function findStove()
         local cps=workspace:FindFirstChild("CookingPots") if not cps then return nil,nil end
         for _,v in ipairs(cps:GetChildren()) do
@@ -496,116 +508,142 @@ A.GenerateMaxIllegalMoney=function()
         end
         return nil,nil
     end
-
-    local function findSell()
+    local function findSeller()
         local s=workspace:FindFirstChild("IceFruit Sell") if not s then return nil,nil end
-        return s,s:FindFirstChild("ProximityPrompt") or s:FindFirstChildWhichIsA("ProximityPrompt",true)
+        local pr=s:FindFirstChild("ProximityPrompt") or s:FindFirstChildWhichIsA("ProximityPrompt",true)
+        return s,pr
     end
-
     local function stoveBusy(cp)
         if not cp then return false end
         local steam=cp:FindFirstChild("Steam",true) if not steam then return false end
-        local lui=steam:FindFirstChild("LoadUI",true)
-        if lui then return lui.Enabled end
+        local lui=steam:FindFirstChild("LoadUI",true) if lui then return lui.Enabled end
         return false
     end
 
-    notify("Money","Starting juice flow...")
+    notify("Money","B3 juice — starting")
 
     local stove,prompt=findStove()
-    if not stove then notify("Money","No CookingPots found.") return end
-    local sell,sPrompt=findSell()
-    if not sell then notify("Money","No IceFruit Sell found.") return end
+    if not stove or not prompt then notify("Money","No CookingPots found.") return end
+    local sell,sPrompt=findSeller()
+    if not sell or not sPrompt then notify("Money","No IceFruit Sell found.") return end
 
-    local origCF=P.Character and P.Character.HumanoidRootPart and P.Character.HumanoidRootPart.CFrame
+    local origCF=LP.Character and LP.Character.HumanoidRootPart and LP.Character.HumanoidRootPart.CFrame
 
-    -- buy missing items
+    -- buy ingredients
     local exo=RS:FindFirstChild("ExoticShopRemote",true)
     if exo then
         for _,name in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag","Ice-Fruit Cupz"}) do
-            if not hasIt(name) then
+            if not hasItem(name) then
                 pcall(function() exo:InvokeServer(name) end)
                 task.wait(0.4)
             end
         end
     end
-    notify("Money","Bought items.")
+    notify("Money","Bought ingredients")
 
-    -- tp to stove and anchor
+    -- tp to stove
     local cp=stove:FindFirstChild("CookPart") or stove.PrimaryPart
         or stove:FindFirstChildWhichIsA("BasePart",true)
-    if not cp then notify("Money","Stove has no CookPart.") return end
+    if not cp then notify("Money","No CookPart.") return end
 
     notify("Money","Going to stove...")
     TP(cp.CFrame+Vector3.new(0,2,0))
     task.wait(0.8)
 
-    local c=P.Character
+    local c=LP.Character
     local hrp=c and c:FindFirstChild("HumanoidRootPart")
     if hrp then hrp.Anchored=true end
     task.wait(0.4)
 
-    notify("Money","Turning stove on...")
-    pcall(function() fireproximityprompt(prompt) end)
+    notify("Money","Stove on")
+    firePrompt(prompt)
     task.wait(1.8)
 
     for _,name in ipairs({"FijiWater","FreshWater","Ice-Fruit Bag"}) do
-        if eqName(name) then
-            notify("Money","Adding "..name)
+        if equipByName(name) then
+            notify("Money","+"..name)
             task.wait(1)
-            pcall(function() fireproximityprompt(prompt) end)
+            firePrompt(prompt)
             task.wait(3)
         else
             notify("Money","Missing "..name)
         end
     end
 
-    if findCup() then
-        notify("Money","Brewing...")
-        local start=os.clock()
-        local cap=360
-        while (os.clock()-start)<cap do
-            pcall(function() fireproximityprompt(prompt) end)
-            task.wait(0.5)
-            if findFull() then
-                notify("Money","Ready after "..math.floor(os.clock()-start).."s")
-                break
-            end
-            if not stoveBusy(cp) then
-                for _=1,10 do
-                    pcall(function() fireproximityprompt(prompt) end)
-                    task.wait(0.3)
-                    if findFull() then break end
+    if not equipCup() then
+        notify("Money","No empty cup in backpack")
+        if hrp then hrp.Anchored=false end
+        if origCF then pcall(function() TP(origCF) end) end
+        return
+    end
+
+    notify("Money","Brewing — auto-detect...")
+    local start=os.clock()
+    local lastReport=0
+    local HARD_CAP=360
+    local ready=false
+
+    while (os.clock()-start)<HARD_CAP do
+        firePrompt(prompt)
+        task.wait(0.5)
+
+        if findFullCup() then
+            notify("Money","Cup ready after "..math.floor(os.clock()-start).."s")
+            ready=true
+            break
+        end
+
+        if not stoveBusy(cp) then
+            for _=1,10 do
+                firePrompt(prompt)
+                task.wait(0.3)
+                if findFullCup() then
+                    notify("Money","Cup ready after "..math.floor(os.clock()-start).."s")
+                    ready=true
+                    break
                 end
             end
+            if ready then break end
+        end
+
+        local elapsed=math.floor(os.clock()-start)
+        if elapsed-lastReport>=15 then
+            lastReport=elapsed
+            notify("Money","Still brewing... "..elapsed.."s")
         end
     end
 
     if hrp then hrp.Anchored=false end
     task.wait(0.3)
 
-    local cup=findFull()
-    if not cup then
-        notify("Money","No brewed cup produced.")
+    if not ready then
+        notify("Money","Brew timeout ("..HARD_CAP.."s)")
         if origCF then pcall(function() TP(origCF) end) end
         return
     end
 
-    local h2=P.Character and P.Character:FindFirstChildWhichIsA("Humanoid")
-    if h2 and cup.Parent~=P.Character then
+    -- sell
+    local cup=findFullCup()
+    if not cup then
+        notify("Money","No full cup")
+        if origCF then pcall(function() TP(origCF) end) end
+        return
+    end
+
+    local h2=LP.Character and LP.Character:FindFirstChildWhichIsA("Humanoid")
+    if h2 and cup.Parent~=LP.Character then
         pcall(function() h2:EquipTool(cup) end)
         task.wait(0.5)
     end
 
     local sellCF
-    if sell:IsA("BasePart") then
-        sellCF=sell.CFrame
+    if sell:IsA("BasePart") then sellCF=sell.CFrame
     else
         local p=sell:FindFirstChildWhichIsA("BasePart",true)
         sellCF=p and p.CFrame
     end
     if not sellCF then
-        notify("Money","Couldn't resolve seller position.")
+        notify("Money","No seller position")
         if origCF then pcall(function() TP(origCF) end) end
         return
     end
@@ -620,12 +658,12 @@ A.GenerateMaxIllegalMoney=function()
 
     notify("Money","Burst selling 4000x...")
     for _=1,4000 do
-        task.spawn(function() pcall(function() fireproximityprompt(sPrompt) end) end)
+        task.spawn(function() pcall(function() firePrompt(sPrompt) end) end)
     end
     task.wait(8)
 
     if origCF then pcall(function() TP(origCF) end) end
-    notify("Money","Done — money generated.")
+    notify("Money","Done — money generated")
 end
 
 local function dropAmt(a)
